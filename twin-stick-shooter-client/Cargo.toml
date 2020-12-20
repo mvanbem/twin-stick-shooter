@@ -1,0 +1,39 @@
+[package]
+name = "twin-stick-shooter-client"
+version = "0.1.0"
+authors = ["Michael VanBemmel <michael.vanbemmel@gmail.com>"]
+edition = "2018"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cgmath = "0.17"
+console_error_panic_hook = "0.1"
+derive_more = "0.99"
+js-sys = { version = "0.3" }
+legion = { version = "0.3", default-features = false, features = ["codegen", "wasm-bindgen"] }
+twin-stick-shooter-core = { path = "../twin-stick-shooter-core" }
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+    "CanvasRenderingContext2d",
+    "console",
+    "CssStyleDeclaration",
+    "Document",
+    "DomRect",
+    "Element",
+    "EventTarget",
+    "Gamepad",
+    "GamepadButton",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Navigator",
+    "Node",
+    "Window",
+]
