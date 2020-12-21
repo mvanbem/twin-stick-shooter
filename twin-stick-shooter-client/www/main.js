@@ -7,8 +7,15 @@ import init, { launch } from './twin_stick_shooter_client.js';
 
 let websocket = new Promise((resolve, reject) => {
     let url = new URL(window.location.href);
-    url.protocol = "ws";
-    url.pathname = "/websocket";
+    if (url.protocol === 'https') {
+        url.protocol = 'wss';
+    } else {
+        url.protocol = 'ws';
+    }
+    if (!url.pathname.endsWith('/')) {
+        url.pathname += '/';
+    }
+    url.pathname += 'websocket';
     let ws = new WebSocket(url);
     ws.addEventListener('open', () => {
         resolve(ws);
@@ -41,7 +48,7 @@ let websocket = new Promise((resolve, reject) => {
     let offer = await conn.createOffer();
     await conn.setLocalDescription(offer);
     let resp = await (async () => {
-        let resp = await fetch('/webrtc-offer', {
+        let resp = await fetch('webrtc-offer', {
             method: 'POST',
             body: offer.sdp,
         });

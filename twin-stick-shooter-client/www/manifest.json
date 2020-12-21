@@ -1,0 +1,12 @@
+{
+    "name": "Twin-Stick Shooter",
+    "orientation": "landscape",
+    "display": "fullscreen",
+    "icons": [
+        {
+            "src": "https://mvanbem.net/projects/shooter/itsacrate.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

@@ -56,9 +56,8 @@ pub fn launch() {
         .dyn_into()
         .unwrap();
 
-    // Construct the singleton App instance inside an Arc and a Mutex. This makes it easy to
-    // ensure the App instance lives long enough for all of the various asynchronous callbacks
-    // that it will register.
+    // Construct the App instance inside an Arc and a Mutex. This makes it easy to ensure it lives
+    // long enough for all of the various asynchronous callbacks that it will register.
     let app = Arc::new(Mutex::new(App {
         game,
         last_dimensions: None,

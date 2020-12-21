@@ -25,6 +25,9 @@ pub fn draw(
     ctx.fill_rect(0.0, 0.0, w, h);
     ctx.translate(0.5 * w, 0.5 * h).unwrap();
 
+    let s = w.min(h) / 800.0;
+    ctx.scale(s, s).unwrap();
+
     draw_players(ctx, game, input);
     draw_hitboxes(ctx, game);
     draw_hurtboxes(ctx, game);
