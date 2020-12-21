@@ -7,10 +7,10 @@ import init, { launch } from './twin_stick_shooter_client.js';
 
 let websocket = new Promise((resolve, reject) => {
     let url = new URL(window.location.href);
-    if (url.protocol === 'https') {
-        url.protocol = 'wss';
+    if (url.protocol === 'https:') {
+        url.protocol = 'wss:';
     } else {
-        url.protocol = 'ws';
+        url.protocol = 'ws:';
     }
     if (!url.pathname.endsWith('/')) {
         url.pathname += '/';
