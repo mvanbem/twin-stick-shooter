@@ -1,15 +1,16 @@
 use cgmath::num_traits::zero;
-use cgmath::InnerSpace;
+use cgmath::{InnerSpace, VectorSpace};
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
-use legion::{Entity, EntityStore, IntoQuery, Read, Write};
+use legion::{Entity, EntityStore, IntoQuery};
 
 use crate::collision::Shape;
 use crate::component::{
-    ForceAccumulator, Health, Hitbox, HitboxState, Hurtbox, HurtboxState, Lifespan, Mass, Position,
-    ReflectWithin, RemoveOnHit, Velocity,
+    ForceAccumulator, Health, Hitbox, HitboxState, Hurtbox, HurtboxState, InterpolatedPosition,
+    Lifespan, Mass, Position, PrevPosition, ReflectWithin, RemoveOnHit, Velocity,
 };
-use crate::resource::Time;
+use crate::resource::{Subframe, Time};
+use crate::Vec2;
 
 mod player;
 
@@ -32,12 +33,16 @@ pub fn physics(
     #[resource] time: &Time,
     mass: Option<&Mass>,
     pos: &mut Position,
+    prev_pos: Option<&mut PrevPosition>,
     vel: &mut Velocity,
     force: Option<&mut ForceAccumulator>,
 ) {
     if let (Some(mass), Some(force)) = (mass, force) {
         vel.0 += force.0 * mass.inv_mass() * time.elapsed_seconds;
         force.0 = zero();
+    }
+    if let Some(prev_pos) = prev_pos {
+        prev_pos.0 = pos.0;
     }
     pos.0 += vel.0 * time.elapsed_seconds;
 }
@@ -74,16 +79,18 @@ pub fn collide(world: &mut SubWorld) {
             .flat_map(|chunk| chunk.into_iter_entities())
         {
             if hitbox_entity != hurtbox_entity && hitbox.mask.overlaps(hurtbox.mask) {
-                let &Position(hitbox_pos) = position_world
+                let hitbox_pos = position_world
                     .entry_ref(hitbox_entity)
                     .unwrap()
-                    .get_component()
-                    .unwrap();
-                let &Position(hurtbox_pos) = position_world
+                    .get_component::<Position>()
+                    .unwrap()
+                    .0;
+                let hurtbox_pos = position_world
                     .entry_ref(hurtbox_entity)
                     .unwrap()
-                    .get_component()
-                    .unwrap();
+                    .get_component::<Position>()
+                    .unwrap()
+                    .0;
                 if Shape::test(&hitbox.shape, hitbox_pos, &hurtbox.shape, hurtbox_pos) {
                     hitbox_state.hit_entities.push(hurtbox_entity);
                     hurtbox_state.hit_by_entities.push(hitbox_entity);
@@ -117,6 +124,16 @@ pub fn damage(
     if *health == 0.0 {
         cmd.remove(*entity);
     }
+}
+
+#[legion::system(for_each)]
+pub fn interpolate(
+    pos: &Position,
+    prev_pos: &PrevPosition,
+    interpolated_pos: &mut InterpolatedPosition,
+    #[resource] subframe: &Subframe,
+) {
+    interpolated_pos.0 = Vec2::lerp(prev_pos.0, pos.0, subframe.0);
 }
 
 #[legion::system(for_each)]

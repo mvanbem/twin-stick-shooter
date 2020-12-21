@@ -4,8 +4,8 @@ use legion::systems::CommandBuffer;
 
 use crate::collision::{Circle, CollisionMask};
 use crate::component::{
-    ForceAccumulator, Hitbox, HitboxState, Lifespan, Mass, Player, PlayerPlan, Position,
-    RemoveOnHit, Velocity,
+    ForceAccumulator, Hitbox, HitboxState, InterpolatedPosition, Lifespan, Mass, Player,
+    PlayerPlan, Position, PrevPosition, RemoveOnHit, Velocity,
 };
 use crate::resource::{Input, Time};
 use crate::util::Timer;
@@ -22,7 +22,9 @@ pub fn player_plan(
 ) {
     let deadzoned_move = {
         let r = input.move_.magnitude();
-        if r > 0.5 {
+        if r > 1.0 {
+            input.move_.normalize()
+        } else if r > 0.5 {
             input.move_.normalize_to((r - 0.5) * 2.0)
         } else {
             zero()
@@ -52,8 +54,11 @@ pub fn player_plan(
 #[legion::system(for_each)]
 pub fn player_act(cmd: &mut CommandBuffer, pos: &Position, vel: &Velocity, plan: &mut PlayerPlan) {
     if let Some(dir) = plan.shoot {
+        let bullet_pos = pos.0 + dir.normalize_to(20.0);
         cmd.push((
-            Position(pos.0 + dir.normalize_to(20.0)),
+            Position(bullet_pos),
+            PrevPosition(bullet_pos),
+            InterpolatedPosition(bullet_pos),
             Velocity(vel.0 + dir.normalize_to(1000.0)),
             Lifespan(Timer::with_remaining(2.0)),
             Hitbox {

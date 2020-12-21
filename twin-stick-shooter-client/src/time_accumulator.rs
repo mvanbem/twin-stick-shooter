@@ -1,3 +1,5 @@
+use std::ops::Div;
+
 use derive_more::{Add, Sub, SubAssign};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Add, SubAssign)]
@@ -10,6 +12,14 @@ impl Seconds {
 
     pub fn at_most(self, x: Seconds) -> Seconds {
         Seconds(self.0.min(x.0))
+    }
+}
+
+impl Div<Seconds> for Seconds {
+    type Output = f32;
+
+    fn div(self, rhs: Seconds) -> Self::Output {
+        self.0 / rhs.0
     }
 }
 

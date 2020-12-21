@@ -1,5 +1,4 @@
 use cgmath::num_traits::zero;
-use cgmath::{vec2, BaseFloat, InnerSpace, VectorSpace};
 use legion::{Resources, Schedule, World};
 use rand::{Rng, SeedableRng};
 use rand_distr::Distribution;
@@ -13,16 +12,17 @@ pub mod util;
 
 use collision::{Circle, CollisionMask};
 use component::{
-    ForceAccumulator, Health, Hurtbox, Player, PlayerPlan, Position, ReflectWithin, Velocity,
+    ForceAccumulator, Health, Hurtbox, InterpolatedPosition, Player, PlayerPlan, Position,
+    PrevPosition, ReflectWithin, Velocity,
 };
-use resource::{Input, Time};
+use resource::{Input, Subframe, Time};
 use system::{
-    collide_system, damage_system, lifespan_system, physics_system, player_act_system,
-    player_plan_system, reflect_within_system, remove_on_hit_system,
+    collide_system, damage_system, interpolate_system, lifespan_system, physics_system,
+    player_act_system, player_plan_system, reflect_within_system, remove_on_hit_system,
 };
 use util::Timer;
 
-use crate::component::{HurtboxState, Mass};
+use crate::component::{HurtboxState, Inventory, Mass};
 
 pub type Vec2 = cgmath::Vector2<f32>;
 
@@ -36,8 +36,10 @@ impl Distribution<Vec2> for UnitDisc {
 
 pub struct Game {
     world: World,
-    resources: Resources,
+    step_resources: Resources,
     step_schedule: Schedule,
+    interpolate_resources: Resources,
+    interpolate_schedule: Schedule,
 }
 
 impl Game {
@@ -54,8 +56,11 @@ impl Game {
         // Create some targets.
         let mut targets = vec![];
         for _ in 0..32 {
+            let pos = UnitDisc.sample(&mut rng) * 400.0;
             targets.push((
-                Position(UnitDisc.sample(&mut rng) * 400.0),
+                Position(pos),
+                PrevPosition(pos),
+                InterpolatedPosition(pos),
                 Velocity(UnitDisc.sample(&mut rng) * 100.0),
                 ForceAccumulator::default(),
                 Mass::new(100.0),
@@ -73,39 +78,37 @@ impl Game {
         // Create a player entity.
         world.push((
             Position(zero()),
+            PrevPosition(zero()),
+            InterpolatedPosition(zero()),
             Velocity(zero()),
             ForceAccumulator::default(),
             Mass::new(100.0),
             Player {
                 shoot_cooldown: Timer::elapsed(),
+                inventory: Inventory {},
             },
             PlayerPlan::default(),
         ));
 
-        let mut resources = Resources::default();
-        resources.insert(Time {
-            elapsed_seconds: 1.0 / 60.0,
-        });
-
-        let step_schedule = Schedule::builder()
-            .add_system(player_plan_system())
-            .add_system(physics_system())
-            .add_system(reflect_within_system())
-            .add_system(player_act_system())
-            .add_system(collide_system())
-            .add_system(damage_system())
-            .add_system(lifespan_system())
-            .add_system(remove_on_hit_system())
-            .build();
-
         Game {
             world,
-            resources,
-            step_schedule,
+            step_resources: Resources::default(),
+            step_schedule: Schedule::builder()
+                .add_system(player_plan_system())
+                .add_system(physics_system())
+                .add_system(reflect_within_system())
+                .add_system(player_act_system())
+                .add_system(collide_system())
+                .add_system(damage_system())
+                .add_system(lifespan_system())
+                .add_system(remove_on_hit_system())
+                .build(),
+            interpolate_resources: Resources::default(),
+            interpolate_schedule: Schedule::builder().add_system(interpolate_system()).build(),
         }
     }
 
-    pub fn world(&mut self) -> &World {
+    pub fn world(&self) -> &World {
         &self.world
     }
 
@@ -114,22 +117,15 @@ impl Game {
     }
 
     pub fn step(&mut self, elapsed_seconds: f32, input: Input) {
-        self.resources.insert(Time { elapsed_seconds });
-        self.resources.insert(input);
+        self.step_resources.insert(Time { elapsed_seconds });
+        self.step_resources.insert(input);
         self.step_schedule
-            .execute(&mut self.world, &mut self.resources);
+            .execute(&mut self.world, &mut self.step_resources);
     }
-}
 
-fn seek<V: InnerSpace>(x: V, goal: V, max_abs_dx: <V as VectorSpace>::Scalar) -> V
-where
-    <V as VectorSpace>::Scalar: BaseFloat,
-{
-    let dx = goal - x;
-    let abs_dx = dx.magnitude();
-    if abs_dx <= max_abs_dx {
-        x
-    } else {
-        x + dx.normalize_to(max_abs_dx)
+    pub fn interpolate(&mut self, subframe: Subframe) {
+        self.interpolate_resources.insert(subframe);
+        self.interpolate_schedule
+            .execute(&mut self.world, &mut self.interpolate_resources);
     }
 }

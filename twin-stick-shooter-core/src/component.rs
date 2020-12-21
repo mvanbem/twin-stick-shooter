@@ -6,8 +6,10 @@ use crate::util::Timer;
 use crate::Vec2;
 
 mod mass;
+mod player;
 
 pub use mass::Mass;
+pub use player::{Inventory, Player, PlayerPlan};
 
 #[derive(Clone, Debug)]
 pub struct ForceAccumulator(pub Vec2);
@@ -50,20 +52,13 @@ pub struct HurtboxState {
 pub struct Lifespan(pub Timer);
 
 #[derive(Clone, Debug)]
-pub struct Player {
-    pub shoot_cooldown: Timer,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct PlayerPlan {
-    pub shoot: Option<Vec2>,
-}
-
-#[derive(Clone, Debug)]
-pub struct PlayerBullet;
-
-#[derive(Clone, Debug)]
 pub struct Position(pub Vec2);
+
+#[derive(Clone, Debug)]
+pub struct PrevPosition(pub Vec2);
+
+#[derive(Clone, Debug)]
+pub struct InterpolatedPosition(pub Vec2);
 
 #[derive(Clone, Debug)]
 pub struct ReflectWithin(pub f32);

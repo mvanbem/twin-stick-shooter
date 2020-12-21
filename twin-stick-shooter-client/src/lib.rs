@@ -1,17 +1,16 @@
-use cgmath::num_traits::zero;
 use cgmath::vec2;
-use legion::IntoQuery;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use twin_stick_shooter_core::collision::Shape;
-use twin_stick_shooter_core::component::{
-    Hitbox, HitboxState, Hurtbox, HurtboxState, Player, Position,
-};
-use twin_stick_shooter_core::resource::Input;
+use twin_stick_shooter_core::resource::{Input, Subframe};
 use twin_stick_shooter_core::Game;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{CanvasRenderingContext2d, Gamepad, GamepadButton, HtmlCanvasElement, Window};
+use wasm_bindgen::JsCast;
+use web_sys::{
+    CanvasRenderingContext2d, Gamepad, GamepadButton, GamepadMappingType, HtmlCanvasElement,
+    KeyboardEvent, Window,
+};
 
+mod draw;
 mod time_accumulator;
 
 use time_accumulator::{Seconds, TimeAccumulator};
@@ -22,6 +21,9 @@ pub struct App {
     game: Game,
     last_dimensions: Option<(u32, u32)>,
     time_accumulator: TimeAccumulator,
+
+    keys: HashMap<char, bool>,
+    key_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
 
     canvas: HtmlCanvasElement,
     ctx: CanvasRenderingContext2d,
@@ -62,11 +64,55 @@ pub fn launch() {
         last_dimensions: None,
         time_accumulator: TimeAccumulator::default(),
 
+        keys: "wasdijkl ".chars().map(|c| (c, false)).collect(),
+        key_callback: None,
+
         canvas,
         ctx,
         draw_callback: None,
     }));
     let mut app_mut = app.lock().unwrap();
+
+    // Register for keyboard events.
+    app_mut.key_callback = Some(Closure::wrap(Box::new({
+        let app = Arc::clone(&app);
+        move |e: KeyboardEvent| {
+            let key = e.key();
+            if key.len() == 1 {
+                key.chars().next().map(|key| {
+                    app.lock().unwrap().keys.entry(key).and_modify(|entry| {
+                        *entry = match e.type_().as_str() {
+                            "keydown" => true,
+                            "keyup" => false,
+                            _ => unreachable!(),
+                        }
+                    });
+                });
+            }
+        }
+    }) as Box<dyn FnMut(KeyboardEvent)>));
+    window
+        .add_event_listener_with_callback(
+            "keydown",
+            app_mut
+                .key_callback
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unchecked_ref(),
+        )
+        .unwrap();
+    window
+        .add_event_listener_with_callback(
+            "keyup",
+            app_mut
+                .key_callback
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unchecked_ref(),
+        )
+        .unwrap();
 
     // Request an animation frame callback for the first update_and_draw. Each update_and_draw
     // will schedule its successor.
@@ -91,6 +137,10 @@ pub fn launch() {
 impl App {
     const FIXED_TIMESTEP: Seconds = Seconds(1.0 / 100.0);
 
+    fn get_key(&self, key: char) -> bool {
+        self.keys.get(&key).copied().unwrap_or_default()
+    }
+
     fn update_and_draw(&mut self, timestamp: f64) {
         self.time_accumulator
             .update_for_timestamp(Milliseconds(timestamp));
@@ -104,7 +154,17 @@ impl App {
         }
 
         self.interpolate();
-        self.draw(&window);
+        draw::draw(&self.canvas, &self.ctx, &self.game, &input);
+
+        window
+            .request_animation_frame(
+                self.draw_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            )
+            .unwrap();
     }
 
     fn update_dimensions(&mut self, window: &Window) {
@@ -132,131 +192,52 @@ impl App {
     }
 
     fn sample_input(&self, window: &Window) -> Input {
-        let gamepads = window.navigator().get_gamepads().unwrap();
-        if let Ok(gamepad) = gamepads.get(0).dyn_into::<Gamepad>() {
-            let axes = gamepad.axes();
-            let buttons = gamepad.buttons();
-            Input {
+        window
+            .navigator()
+            .get_gamepads()
+            .unwrap()
+            .iter()
+            .flat_map(|gamepad| {
+                let gamepad = gamepad.dyn_into::<Gamepad>().ok()?;
+                if gamepad.mapping() != GamepadMappingType::Standard {
+                    return None;
+                }
+
+                let axes = gamepad.axes();
+                let buttons = gamepad.buttons();
+                Some(Input {
+                    move_: vec2(
+                        axes.get(0).as_f64().unwrap() as f32,
+                        axes.get(1).as_f64().unwrap() as f32,
+                    ),
+                    aim: vec2(
+                        axes.get(2).as_f64().unwrap() as f32,
+                        axes.get(3).as_f64().unwrap() as f32,
+                    ),
+                    fire: buttons.get(7).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
+                })
+            })
+            .next()
+            .unwrap_or_else(|| Input {
                 move_: vec2(
-                    axes.get(0).as_f64().unwrap() as f32,
-                    axes.get(1).as_f64().unwrap() as f32,
+                    if self.get_key('d') { 1.0 } else { 0.0 }
+                        + if self.get_key('a') { -1.0 } else { 0.0 },
+                    if self.get_key('s') { 1.0 } else { 0.0 }
+                        + if self.get_key('w') { -1.0 } else { 0.0 },
                 ),
                 aim: vec2(
-                    axes.get(2).as_f64().unwrap() as f32,
-                    axes.get(3).as_f64().unwrap() as f32,
+                    if self.get_key('l') { 1.0 } else { 0.0 }
+                        + if self.get_key('j') { -1.0 } else { 0.0 },
+                    if self.get_key('k') { 1.0 } else { 0.0 }
+                        + if self.get_key('i') { -1.0 } else { 0.0 },
                 ),
-                fire: buttons.get(7).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
-            }
-        } else {
-            Input {
-                move_: zero(),
-                aim: zero(),
-                fire: false,
-            }
-        }
+                fire: self.get_key(' '),
+            })
     }
 
     fn interpolate(&mut self) {
-        // TODO: Run a Legion system to compute interpolated positions based on the current time
-        // accumulator.
-    }
-
-    fn draw(&mut self, window: &Window) {
-        let w = self.canvas.width() as f64;
-        let h = self.canvas.height() as f64;
-        let ctx = self.ctx.clone();
-        ctx.reset_transform().unwrap();
-        ctx.set_fill_style(&JsValue::from_str("#000"));
-        ctx.fill_rect(0.0, 0.0, w, h);
-        ctx.translate(0.5 * w, 0.5 * h).unwrap();
-
-        // Draw players.
-        for (&Position(pos), _) in <(&Position, &Player)>::query().iter(self.game.world()) {
-            ctx.begin_path();
-            ctx.arc(
-                pos.x as f64,
-                pos.y as f64,
-                20.0 as f64,
-                0.0,
-                std::f64::consts::TAU,
-            )
-            .unwrap();
-            ctx.close_path();
-
-            ctx.set_fill_style(&JsValue::from_str("#4f4"));
-            ctx.fill();
-
-            ctx.set_stroke_style(&JsValue::from_str("#282"));
-            ctx.set_line_width(2.0);
-            ctx.stroke();
-        }
-
-        // Draw hurtboxes.
-        for (&Position(pos), hitbox, hitbox_state) in
-            <(&Position, &Hurtbox, &HurtboxState)>::query().iter(self.game.world())
-        {
-            match &hitbox.shape {
-                Shape::Circle(circle) => {
-                    let color = if hitbox_state.hit_by_entities.is_empty() {
-                        "rgba(64, 64, 255, 0.5)"
-                    } else {
-                        "rgba(255, 255, 255, 0.5)"
-                    };
-
-                    ctx.begin_path();
-                    ctx.arc(
-                        pos.x as f64,
-                        pos.y as f64,
-                        circle.radius as f64,
-                        0.0,
-                        std::f64::consts::TAU,
-                    )
-                    .unwrap();
-                    ctx.close_path();
-
-                    ctx.set_fill_style(&JsValue::from_str(color));
-                    ctx.fill();
-                }
-            }
-        }
-
-        // Draw hitboxes.
-        for (&Position(pos), hitbox, hitbox_state) in
-            <(&Position, &Hitbox, &HitboxState)>::query().iter(self.game.world())
-        {
-            match &hitbox.shape {
-                Shape::Circle(circle) => {
-                    let color = if hitbox_state.hit_entities.is_empty() {
-                        "rgba(255, 64, 64, 0.5)"
-                    } else {
-                        "rgba(255, 255, 255, 0.5)"
-                    };
-
-                    ctx.begin_path();
-                    ctx.arc(
-                        pos.x as f64,
-                        pos.y as f64,
-                        circle.radius as f64,
-                        0.0,
-                        std::f64::consts::TAU,
-                    )
-                    .unwrap();
-                    ctx.close_path();
-
-                    ctx.set_fill_style(&JsValue::from_str(color));
-                    ctx.fill();
-                }
-            }
-        }
-
-        window
-            .request_animation_frame(
-                self.draw_callback
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unchecked_ref(),
-            )
-            .unwrap();
+        self.game.interpolate(Subframe(
+            self.time_accumulator.accumulator() / App::FIXED_TIMESTEP,
+        ));
     }
 }
