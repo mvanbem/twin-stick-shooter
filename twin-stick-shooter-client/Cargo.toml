@@ -47,5 +47,6 @@ features = [
     "KeyboardEvent",
     "Navigator",
     "Node",
+    "TextMetrics",
     "Window",
 ]

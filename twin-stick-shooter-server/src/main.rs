@@ -258,9 +258,10 @@ fn set_content_type_header_for_extension(
     if let Some(content_type) = extension
         .and_then(|ext| ext.to_str())
         .and_then(|ext| match ext {
-            "css" => Some("text/css"),
-            "html" => Some("text/html"),
-            "js" => Some("text/javascript"),
+            "css" => Some("text/css; charset=utf-8"),
+            "html" => Some("text/html; charset=utf-8"),
+            "js" => Some("text/javascript; charset=utf-8"),
+            "json" => Some("application/json"),
             "wasm" => Some("application/wasm"),
             _ => None,
         })

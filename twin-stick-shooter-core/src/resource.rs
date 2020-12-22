@@ -10,9 +10,14 @@ pub struct Time {
 #[derive(Clone, Debug)]
 pub struct Subframe(pub f32);
 
+/// TODO: These fields are an incoherent mix of player inputs and standard-mapped gamepad inputs.
+/// Pick one.
 #[derive(Clone, Debug)]
 pub struct Input {
     pub move_: Vec2,
     pub aim: Vec2,
     pub fire: bool,
+    pub dpad_up: bool,
+    pub dpad_down: bool,
+    pub confirm: bool,
 }

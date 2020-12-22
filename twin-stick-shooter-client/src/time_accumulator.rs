@@ -43,13 +43,24 @@ impl TimeAccumulator {
         self.accumulator
     }
 
-    pub fn update_for_timestamp(&mut self, timestamp: Milliseconds) {
+    /// Updates the time accumulator with an observed timestamp.
+    ///
+    /// Returns the time in seconds between the previous observed timestamp and this one. Note that
+    /// fixed-timestep simulations would call this method, but ignore the returned value and call
+    /// [`try_consume`] in a loop instead.
+    pub fn update_for_timestamp(&mut self, timestamp: Milliseconds) -> Option<Seconds> {
+        let raw_seconds = self
+            .last_timestamp
+            .map(|last_timestamp| (timestamp - last_timestamp).to_seconds());
+
         if let Some(last_timestamp) = self.last_timestamp {
             let dt = (timestamp - last_timestamp).to_seconds();
             // Allow simulation to slow down if running below 10 fps.
             self.accumulator = (self.accumulator + dt).at_most(Seconds(0.1));
         }
         self.last_timestamp = Some(timestamp);
+
+        raw_seconds
     }
 
     pub fn try_consume(&mut self, dt: Seconds) -> bool {

@@ -17,8 +17,84 @@ body {
     margin: 0;
 }
 
-canvas {
+#canvas {
     position: absolute;
     left: 0;
     top: 0;
+    z-index: 1;
+}
+
+#gui {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    overflow: auto;
+
+    font: 50px sans-serif;
+    color: #fff;
+
+    display: flex;
+    flex-flow: column nowrap;
+}
+
+.title {
+    font-size: 2em;
+    text-align: center;
+    padding: 0.5em 1em;
+    background-color: #2196f3;
+    color: #fff;
+
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.expand {
+    flex-grow: 1;
+}
+
+.button {
+    border: 3px solid #fff;
+    background-color: #000;
+    padding: 0.5em 2.0em;
+    margin: 0.25em 0.5em;
+    cursor: pointer;
+
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.button.selected {
+    border-color: #ff9100;
+    color: #ff9100;
+    padding-left: 0;
+}
+
+.button.selected::before {
+    content: '➤';
+    display: inline-block;
+    width: 2.0em;
+    text-align: center;
+    margin: -1em 0;
+}
+
+@media (max-width: 1000px) {
+    #gui {
+        font-size: 24px;
+    }
+
+    .title {
+        font-size: 48px;
+    }
 }

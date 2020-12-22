@@ -12,6 +12,8 @@ use twin_stick_shooter_core::Game;
 use wasm_bindgen::JsValue;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
+use crate::style::{ACCENT_COLOR, PRIMARY_COLOR};
+
 pub fn draw(
     canvas: &HtmlCanvasElement,
     ctx: &CanvasRenderingContext2d,
@@ -127,9 +129,9 @@ fn draw_hurtboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
         match &hitbox.shape {
             Shape::Circle(circle) => {
                 let color = if hitbox_state.hit_by_entities.is_empty() {
-                    "rgba(64, 64, 255, 0.5)"
+                    format!("{}80", PRIMARY_COLOR)
                 } else {
-                    "rgba(255, 255, 255, 0.5)"
+                    "#fff8".to_string()
                 };
 
                 ctx.begin_path();
@@ -143,7 +145,7 @@ fn draw_hurtboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
                 .unwrap();
                 ctx.close_path();
 
-                ctx.set_fill_style(&JsValue::from_str(color));
+                ctx.set_fill_style(&JsValue::from_str(&color));
                 ctx.fill();
             }
         }
@@ -157,9 +159,9 @@ fn draw_hitboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
         match &hitbox.shape {
             Shape::Circle(circle) => {
                 let color = if hitbox_state.hit_entities.is_empty() {
-                    "rgba(255, 64, 64, 0.5)"
+                    format!("{}80", ACCENT_COLOR)
                 } else {
-                    "rgba(255, 255, 255, 0.5)"
+                    "#fff8".to_string()
                 };
 
                 ctx.begin_path();
@@ -173,7 +175,7 @@ fn draw_hitboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
                 .unwrap();
                 ctx.close_path();
 
-                ctx.set_fill_style(&JsValue::from_str(color));
+                ctx.set_fill_style(&JsValue::from_str(&color));
                 ctx.fill();
             }
         }

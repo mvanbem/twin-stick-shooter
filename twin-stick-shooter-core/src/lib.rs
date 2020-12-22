@@ -36,8 +36,10 @@ impl Distribution<Vec2> for UnitDisc {
 
 pub struct Game {
     world: World,
+
     step_resources: Resources,
     step_schedule: Schedule,
+
     interpolate_resources: Resources,
     interpolate_schedule: Schedule,
 }
@@ -92,6 +94,7 @@ impl Game {
 
         Game {
             world,
+
             step_resources: Resources::default(),
             step_schedule: Schedule::builder()
                 .add_system(player_plan_system())
@@ -103,6 +106,7 @@ impl Game {
                 .add_system(lifespan_system())
                 .add_system(remove_on_hit_system())
                 .build(),
+
             interpolate_resources: Resources::default(),
             interpolate_schedule: Schedule::builder().add_system(interpolate_system()).build(),
         }

@@ -1,7 +1,7 @@
 use cgmath::vec2;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use twin_stick_shooter_core::resource::{Input, Subframe};
+use twin_stick_shooter_core::resource::{Input, Subframe, Time};
 use twin_stick_shooter_core::Game;
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::JsCast;
@@ -11,8 +11,11 @@ use web_sys::{
 };
 
 mod draw;
+mod menu;
+mod style;
 mod time_accumulator;
 
+use menu::MenuState;
 use time_accumulator::{Seconds, TimeAccumulator};
 
 use crate::time_accumulator::Milliseconds;
@@ -24,6 +27,8 @@ pub struct App {
 
     keys: HashMap<char, bool>,
     key_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+
+    menu_state: MenuState,
 
     canvas: HtmlCanvasElement,
     ctx: CanvasRenderingContext2d,
@@ -48,6 +53,7 @@ pub fn launch() {
         .unwrap()
         .dyn_into()
         .unwrap();
+    canvas.set_id("canvas");
     body.append_child(&canvas).unwrap();
     let ctx: CanvasRenderingContext2d = canvas
         .get_context("2d")
@@ -65,6 +71,8 @@ pub fn launch() {
 
         keys: "wasdijkl ".chars().map(|c| (c, false)).collect(),
         key_callback: None,
+
+        menu_state: MenuState::new_main_menu(),
 
         canvas,
         ctx,
@@ -141,13 +149,17 @@ impl App {
     }
 
     fn update_and_draw(&mut self, timestamp: f64) {
-        self.time_accumulator
+        let elapsed_seconds = self
+            .time_accumulator
             .update_for_timestamp(Milliseconds(timestamp));
 
         let window = web_sys::window().unwrap();
         self.update_dimensions(&window);
 
         let input = self.sample_input(&window);
+        if let Some(Seconds(elapsed_seconds)) = elapsed_seconds {
+            self.menu_state.step(&Time { elapsed_seconds }, &input);
+        }
         while self.time_accumulator.try_consume(App::FIXED_TIMESTEP) {
             self.game.step(App::FIXED_TIMESTEP.seconds(), input.clone());
         }
@@ -214,6 +226,9 @@ impl App {
                         axes.get(3).as_f64().unwrap() as f32,
                     ),
                     fire: buttons.get(7).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
+                    dpad_up: buttons.get(12).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
+                    dpad_down: buttons.get(13).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
+                    confirm: buttons.get(0).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                 })
             })
             .next()
@@ -231,6 +246,9 @@ impl App {
                         + if self.get_key('i') { -1.0 } else { 0.0 },
                 ),
                 fire: self.get_key(' '),
+                dpad_up: false,
+                dpad_down: false,
+                confirm: false,
             })
     }
 
