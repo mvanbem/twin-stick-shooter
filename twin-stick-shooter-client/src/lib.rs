@@ -11,13 +11,14 @@ use web_sys::{
 };
 
 mod draw;
-mod menu;
+mod gui;
 mod style;
 mod time_accumulator;
 
-use menu::MenuState;
+use gui::{GuiState, MainMenu};
 use time_accumulator::{Seconds, TimeAccumulator};
 
+use crate::gui::GuiStepResult;
 use crate::time_accumulator::Milliseconds;
 
 pub struct App {
@@ -25,10 +26,10 @@ pub struct App {
     last_dimensions: Option<(u32, u32)>,
     time_accumulator: TimeAccumulator,
 
-    keys: HashMap<char, bool>,
+    keys: HashMap<String, bool>,
     key_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
 
-    menu_state: MenuState,
+    gui: Option<GuiState>,
 
     canvas: HtmlCanvasElement,
     ctx: CanvasRenderingContext2d,
@@ -69,10 +70,14 @@ pub fn launch() {
         last_dimensions: None,
         time_accumulator: TimeAccumulator::default(),
 
-        keys: "wasdijkl ".chars().map(|c| (c, false)).collect(),
+        keys: "wasdijkl "
+            .chars()
+            .map(|c| (c.to_string(), false))
+            .chain((&["Enter"]).iter().copied().map(|s| (s.to_string(), false)))
+            .collect(),
         key_callback: None,
 
-        menu_state: MenuState::new_main_menu(),
+        gui: Some(GuiState::new(Box::new(MainMenu))),
 
         canvas,
         ctx,
@@ -84,17 +89,14 @@ pub fn launch() {
     app_mut.key_callback = Some(Closure::wrap(Box::new({
         let app = Arc::clone(&app);
         move |e: KeyboardEvent| {
+            let mut app_mut = app.lock().unwrap();
             let key = e.key();
-            if key.len() == 1 {
-                key.chars().next().map(|key| {
-                    app.lock().unwrap().keys.entry(key).and_modify(|entry| {
-                        *entry = match e.type_().as_str() {
-                            "keydown" => true,
-                            "keyup" => false,
-                            _ => unreachable!(),
-                        }
-                    });
-                });
+            if app_mut.keys.contains_key(&key) {
+                *app_mut.keys.get_mut(&key).unwrap() = match e.type_().as_str() {
+                    "keydown" => true,
+                    "keyup" => false,
+                    _ => unreachable!(),
+                };
             }
         }
     }) as Box<dyn FnMut(KeyboardEvent)>));
@@ -144,8 +146,8 @@ pub fn launch() {
 impl App {
     const FIXED_TIMESTEP: Seconds = Seconds(1.0 / 100.0);
 
-    fn get_key(&self, key: char) -> bool {
-        self.keys.get(&key).copied().unwrap_or_default()
+    fn get_key(&self, key: &str) -> bool {
+        self.keys.get(key).copied().unwrap_or_default()
     }
 
     fn update_and_draw(&mut self, timestamp: f64) {
@@ -157,8 +159,15 @@ impl App {
         self.update_dimensions(&window);
 
         let input = self.sample_input(&window);
-        if let Some(Seconds(elapsed_seconds)) = elapsed_seconds {
-            self.menu_state.step(&Time { elapsed_seconds }, &input);
+        if let Some(ref mut gui) = self.gui {
+            if let Some(Seconds(elapsed_seconds)) = elapsed_seconds {
+                match gui.step(&Time { elapsed_seconds }, &input, &mut self.game) {
+                    GuiStepResult::Ok => (),
+                    GuiStepResult::ReplaceWithMenu(menu) => {
+                        self.gui = menu.map(|menu| GuiState::new(menu));
+                    }
+                }
+            }
         }
         while self.time_accumulator.try_consume(App::FIXED_TIMESTEP) {
             self.game.step(App::FIXED_TIMESTEP.seconds(), input.clone());
@@ -234,21 +243,21 @@ impl App {
             .next()
             .unwrap_or_else(|| Input {
                 move_: vec2(
-                    if self.get_key('d') { 1.0 } else { 0.0 }
-                        + if self.get_key('a') { -1.0 } else { 0.0 },
-                    if self.get_key('s') { 1.0 } else { 0.0 }
-                        + if self.get_key('w') { -1.0 } else { 0.0 },
+                    if self.get_key("d") { 1.0 } else { 0.0 }
+                        + if self.get_key("a") { -1.0 } else { 0.0 },
+                    if self.get_key("s") { 1.0 } else { 0.0 }
+                        + if self.get_key("w") { -1.0 } else { 0.0 },
                 ),
                 aim: vec2(
-                    if self.get_key('l') { 1.0 } else { 0.0 }
-                        + if self.get_key('j') { -1.0 } else { 0.0 },
-                    if self.get_key('k') { 1.0 } else { 0.0 }
-                        + if self.get_key('i') { -1.0 } else { 0.0 },
+                    if self.get_key("l") { 1.0 } else { 0.0 }
+                        + if self.get_key("j") { -1.0 } else { 0.0 },
+                    if self.get_key("k") { 1.0 } else { 0.0 }
+                        + if self.get_key("i") { -1.0 } else { 0.0 },
                 ),
-                fire: self.get_key(' '),
+                fire: self.get_key(" "),
                 dpad_up: false,
                 dpad_down: false,
-                confirm: false,
+                confirm: self.get_key("Enter"),
             })
     }
 

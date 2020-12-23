@@ -15,6 +15,8 @@ cgmath = "0.17"
 console_error_panic_hook = "0.1"
 derive_more = "0.99"
 js-sys = { version = "0.3" }
+rand = "0.8"
+rand_distr = "0.4"
 twin-stick-shooter-core = { path = "../twin-stick-shooter-core" }
 wasm-bindgen = "0.2"
 

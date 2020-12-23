@@ -1766,6 +1766,8 @@ dependencies = [
  "derive_more",
  "js-sys",
  "legion",
+ "rand 0.8.0",
+ "rand_distr",
  "twin-stick-shooter-core",
  "wasm-bindgen",
  "web-sys",
