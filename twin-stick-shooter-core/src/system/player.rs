@@ -68,6 +68,7 @@ pub fn player_act(
             Lifespan(Timer::with_remaining(2.0)),
             Hitbox {
                 shape: Circle { radius: 5.0 }.into(),
+                dbvt_index: None,
                 mask: CollisionMask::TARGET,
                 damage: 1.0,
             },

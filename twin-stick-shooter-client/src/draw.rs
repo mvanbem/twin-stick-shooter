@@ -126,14 +126,13 @@ fn draw_hurtboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
     for (&InterpolatedPosition(pos), hitbox, hitbox_state) in
         <(&InterpolatedPosition, &Hurtbox, &HurtboxState)>::query().iter(game.world())
     {
+        let fill_style = if hitbox_state.hit_by_entities.is_empty() {
+            format!("{}80", PRIMARY_COLOR)
+        } else {
+            "#fff8".to_string()
+        };
         match &hitbox.shape {
             Shape::Circle(circle) => {
-                let color = if hitbox_state.hit_by_entities.is_empty() {
-                    format!("{}80", PRIMARY_COLOR)
-                } else {
-                    "#fff8".to_string()
-                };
-
                 ctx.begin_path();
                 ctx.arc(
                     pos.x as f64,
@@ -144,10 +143,10 @@ fn draw_hurtboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
                 )
                 .unwrap();
                 ctx.close_path();
-
-                ctx.set_fill_style(&JsValue::from_str(&color));
+                ctx.set_fill_style(&JsValue::from_str(&fill_style));
                 ctx.fill();
             }
+            _ => (),
         }
     }
 }
@@ -156,14 +155,13 @@ fn draw_hitboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
     for (&InterpolatedPosition(pos), hitbox, hitbox_state) in
         <(&InterpolatedPosition, &Hitbox, &HitboxState)>::query().iter(game.world())
     {
+        let fill_style = if hitbox_state.hit_entities.is_empty() {
+            format!("{}80", ACCENT_COLOR)
+        } else {
+            "#fff8".to_string()
+        };
         match &hitbox.shape {
             Shape::Circle(circle) => {
-                let color = if hitbox_state.hit_entities.is_empty() {
-                    format!("{}80", ACCENT_COLOR)
-                } else {
-                    "#fff8".to_string()
-                };
-
                 ctx.begin_path();
                 ctx.arc(
                     pos.x as f64,
@@ -175,9 +173,10 @@ fn draw_hitboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
                 .unwrap();
                 ctx.close_path();
 
-                ctx.set_fill_style(&JsValue::from_str(&color));
+                ctx.set_fill_style(&JsValue::from_str(&fill_style));
                 ctx.fill();
             }
+            _ => (),
         }
     }
 }

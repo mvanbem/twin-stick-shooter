@@ -27,6 +27,7 @@ pub struct Health(pub f32);
 #[derive(Clone, Debug)]
 pub struct Hitbox {
     pub shape: Shape,
+    pub dbvt_index: Option<usize>,
     pub mask: CollisionMask,
     pub damage: f32,
 }
@@ -40,6 +41,7 @@ pub struct HitboxState {
 #[derive(Clone, Debug)]
 pub struct Hurtbox {
     pub shape: Shape,
+    pub dbvt_index: Option<usize>,
     pub mask: CollisionMask,
 }
 

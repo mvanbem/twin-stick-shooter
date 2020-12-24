@@ -25,6 +25,7 @@ pub fn create_game(game: &mut Game) {
             Mass::new(100.0),
             Hurtbox {
                 shape: Circle { radius: 20.0 }.into(),
+                dbvt_index: None,
                 mask: CollisionMask::TARGET,
             },
             HurtboxState::default(),

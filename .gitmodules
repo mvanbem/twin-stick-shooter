@@ -1,0 +1,3 @@
+[submodule "third_party/collision-rs"]
+	path = third_party/collision-rs
+	url = https://github.com/mvanbem/collision-rs.git

@@ -1,3 +1,4 @@
+use ::collision::dbvt::DynamicBoundingVolumeTree;
 use legion::{Resources, Schedule, World};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
@@ -49,7 +50,7 @@ impl Game {
                 .add_system(physics_system())
                 .add_system(reflect_within_system())
                 .add_system(player_act_system())
-                .add_system(collide_system())
+                .add_system(collide_system(DynamicBoundingVolumeTree::new()))
                 .add_system(damage_system())
                 .add_system(lifespan_system())
                 .add_system(remove_on_hit_system())
@@ -92,14 +93,22 @@ impl Game {
     pub fn step(&mut self, elapsed_seconds: f32, input: Input) {
         self.step_resources.insert(Time { elapsed_seconds });
         self.step_resources.insert(input);
+        self.step_resources.insert(self.rng.clone());
+
         self.step_schedule
             .execute(&mut self.world, &mut self.step_resources);
+
+        self.rng = self.step_resources.remove().unwrap();
     }
 
     pub fn interpolate(&mut self, subframe: Subframe) {
         self.interpolate_resources.insert(subframe);
+        self.interpolate_resources.insert(self.rng.clone());
+
         self.interpolate_schedule
             .execute(&mut self.world, &mut self.interpolate_resources);
+
+        self.rng = self.interpolate_resources.remove().unwrap();
     }
 }
 

@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "third_party/collision-rs",
     "twin-stick-shooter-client",
+    "twin-stick-shooter-core",
     "twin-stick-shooter-server",
 ]

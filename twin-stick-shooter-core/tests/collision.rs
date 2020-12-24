@@ -1,4 +1,5 @@
 use cgmath::vec2;
+use collision::dbvt::DynamicBoundingVolumeTree;
 use legion::{Resources, Schedule, World};
 use twin_stick_shooter_core::collision::{Circle, CollisionMask, Shape};
 use twin_stick_shooter_core::component::{Hitbox, HitboxState, Hurtbox, HurtboxState, Position};
@@ -10,7 +11,10 @@ fn non_overlapping() {
     let pos_a = vec2(-2.1, 0.0);
     let shape_b = Shape::Circle(Circle { radius: 3.0 });
     let pos_b = vec2(3.1, 0.0);
-    assert_eq!(Shape::test(&shape_a, pos_a, &shape_b, pos_b), false);
+    assert_eq!(
+        twin_stick_shooter_core::collision::test(&shape_a, pos_a, &shape_b, pos_b),
+        false
+    );
 }
 
 #[test]
@@ -19,7 +23,10 @@ fn overlapping() {
     let pos_a = vec2(-1.9, 0.0);
     let shape_b = Shape::Circle(Circle { radius: 3.0 });
     let pos_b = vec2(2.9, 0.0);
-    assert_eq!(Shape::test(&shape_a, pos_a, &shape_b, pos_b), true);
+    assert_eq!(
+        twin_stick_shooter_core::collision::test(&shape_a, pos_a, &shape_b, pos_b),
+        true
+    );
 }
 
 #[test]
@@ -29,6 +36,7 @@ fn system() {
         Position(vec2(-2.0, 0.0)),
         Hitbox {
             shape: Shape::Circle(Circle { radius: 2.0 }),
+            dbvt_index: None,
             mask: CollisionMask::TARGET,
             damage: 1.0,
         },
@@ -38,6 +46,7 @@ fn system() {
         Position(vec2(2.9, 0.0)),
         Hurtbox {
             shape: Shape::Circle(Circle { radius: 3.0 }),
+            dbvt_index: None,
             mask: CollisionMask::TARGET,
         },
         HurtboxState::default(),
@@ -46,12 +55,15 @@ fn system() {
         Position(vec2(3.1, 0.0)),
         Hurtbox {
             shape: Shape::Circle(Circle { radius: 3.0 }),
+            dbvt_index: None,
             mask: CollisionMask::TARGET,
         },
         HurtboxState::default(),
     ));
     let mut resources = Resources::default();
-    let mut schedule = Schedule::builder().add_system(collide_system()).build();
+    let mut schedule = Schedule::builder()
+        .add_system(collide_system(DynamicBoundingVolumeTree::new()))
+        .build();
     schedule.execute(&mut world, &mut resources);
 
     assert_eq!(
