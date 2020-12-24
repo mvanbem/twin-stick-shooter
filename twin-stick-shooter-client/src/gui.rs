@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use twin_stick_shooter_core::resource::{Input, Time};
@@ -7,9 +8,8 @@ use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
-mod main_menu;
-
-pub use main_menu::MainMenu;
+pub mod in_game;
+pub mod title;
 
 const BUTTON_COOLDOWN: f32 = 0.25;
 
@@ -26,153 +26,93 @@ struct InnerGuiState {
     move_down_repeat: RepeatingButton,
     dpad_up_repeat: RepeatingButton,
     dpad_down_repeat: RepeatingButton,
+    start_one_shot: OneShotButton,
     confirm_one_shot: OneShotButton,
 
+    event_queue: VecDeque<Event>,
     mousemove_callbacks: Vec<Closure<dyn FnMut()>>,
     mouseout_callback: Option<Closure<dyn FnMut()>>,
+    click_callbacks: Vec<Closure<dyn FnMut()>>,
 }
 
 impl GuiState {
     pub fn new(menu: Box<dyn Menu>) -> GuiState {
-        let window = web_sys::window().unwrap();
-        let document = window.document().unwrap();
-        let gui = document.get_element_by_id("gui").unwrap();
+        let gui = GuiState {
+            inner: Arc::new(Mutex::new(InnerGuiState {
+                menu,
+                items: vec![],
+                selection: None,
 
-        while let Some(child) = gui.last_child() {
-            gui.remove_child(&child).unwrap();
-        }
+                move_up_repeat: RepeatingButton::new(),
+                move_down_repeat: RepeatingButton::new(),
+                dpad_up_repeat: RepeatingButton::new(),
+                dpad_down_repeat: RepeatingButton::new(),
+                start_one_shot: OneShotButton::new(),
+                confirm_one_shot: OneShotButton::new(),
 
-        gui.append_child(
-            {
-                let title: HtmlElement =
-                    document.create_element("div").unwrap().dyn_into().unwrap();
-                title.set_class_name("title");
-                title.set_text_content(Some(menu.title()));
-                title
-            }
-            .as_ref(),
-        )
-        .unwrap();
-        gui.append_child(
-            {
-                let expand: HtmlElement =
-                    document.create_element("div").unwrap().dyn_into().unwrap();
-                expand.set_class_name("expand");
-                expand
-            }
-            .as_ref(),
-        )
-        .unwrap();
-
-        let mut items = vec![];
-        for (index, item) in menu.items().iter().copied().enumerate() {
-            gui.append_child(
-                {
-                    let button: HtmlElement =
-                        document.create_element("div").unwrap().dyn_into().unwrap();
-                    button.set_class_name(if index == 0 {
-                        "button selected"
-                    } else {
-                        "button"
-                    });
-                    button.set_text_content(Some(item));
-                    items.push(button.clone());
-                    button
-                }
-                .as_ref(),
-            )
-            .unwrap();
-        }
-        assert!(items.len() > 0);
-
-        gui.append_child(
-            {
-                let expand: HtmlElement =
-                    document.create_element("div").unwrap().dyn_into().unwrap();
-                expand.set_class_name("expand");
-                expand
-            }
-            .as_ref(),
-        )
-        .unwrap();
-
-        let inner = Arc::new(Mutex::new(InnerGuiState {
-            menu,
-            items,
-            selection: Some(0),
-
-            move_up_repeat: RepeatingButton::new(),
-            move_down_repeat: RepeatingButton::new(),
-            dpad_up_repeat: RepeatingButton::new(),
-            dpad_down_repeat: RepeatingButton::new(),
-            confirm_one_shot: OneShotButton::new(),
-
-            mousemove_callbacks: vec![],
-            mouseout_callback: None,
-        }));
-        let mut inner_mut = inner.lock().unwrap();
-
-        let mut mousemove_callbacks = vec![];
-        let mouseout_callback = Closure::wrap(Box::new({
-            let inner = Arc::clone(&inner);
-            move || {
-                inner.lock().unwrap().set_selection(None);
-            }
-        }) as Box<dyn FnMut()>);
-        for (index, item) in inner_mut.items.iter().enumerate() {
-            let callback = Closure::wrap(Box::new({
-                let inner = Arc::clone(&inner);
-                move || {
-                    inner.lock().unwrap().set_selection(Some(index));
-                }
-            }) as Box<dyn FnMut()>);
-            item.add_event_listener_with_callback("mousemove", callback.as_ref().unchecked_ref())
-                .unwrap();
-            item.add_event_listener_with_callback(
-                "mouseout",
-                mouseout_callback.as_ref().unchecked_ref(),
-            )
-            .unwrap();
-            mousemove_callbacks.push(callback);
-        }
-        inner_mut.mousemove_callbacks = mousemove_callbacks;
-        inner_mut.mouseout_callback = Some(mouseout_callback);
-
-        drop(inner_mut);
-        GuiState { inner }
+                event_queue: VecDeque::new(),
+                mousemove_callbacks: vec![],
+                mouseout_callback: None,
+                click_callbacks: vec![],
+            })),
+        };
+        gui.inner.lock().unwrap().actuate(&gui.inner);
+        gui
     }
 
-    pub fn step(&mut self, time: &Time, input: &Input, game: &mut Game) -> GuiStepResult {
+    pub fn step(&self, time: &Time, input: &Input, game: &mut Game) {
         let mut inner = self.inner.lock().unwrap();
 
-        let mut selection = inner.selection;
-        for increment in GuiState::step_and_interpret_increments(&mut *inner, time, input).drain(..)
-        {
-            selection = Some(match increment {
-                Increment::Backward => selection
-                    .and_then(|index| index.checked_sub(1))
-                    .unwrap_or_else(|| inner.items.len() - 1),
-                Increment::Forward => selection
-                    .and_then(|index| match index + 1 {
-                        x if x < inner.items.len() => Some(x),
-                        _ => None,
-                    })
-                    .unwrap_or(0),
-            });
-        }
-        inner.set_selection(selection);
+        // Pull out a mutable copy for zero or more updates, then apply the change (if any) later.
+        let mut tmp_selection = inner.selection;
 
-        if inner.confirm_one_shot.step_and_is_firing(input.confirm) {
-            if let Some(selection) = inner.selection {
-                match inner.menu.invoke_item(selection, game) {
-                    InvokeItemResult::ReplaceMenu(menu) => {
-                        return GuiStepResult::ReplaceWithMenu(menu);
+        // First, process any queued events that arrived via JS callbacks.
+        let mut event_queue = std::mem::replace(&mut inner.event_queue, VecDeque::new());
+        for event in event_queue.drain(..) {
+            match event {
+                Event::Select(selection) => tmp_selection = selection,
+                Event::Confirm(index) => {
+                    let gui_result = inner.menu.invoke_item(index, game);
+                    if inner.handle_gui_result(&self.inner, gui_result) {
+                        return;
                     }
                 }
             }
         }
 
-        GuiStepResult::Ok
+        for increment in GuiState::step_and_interpret_increments(&mut *inner, time, input).drain(..)
+        {
+            tmp_selection = match increment {
+                Increment::Backward => tmp_selection
+                    .and_then(|index| index.checked_sub(1))
+                    .or_else(|| inner.items.len().checked_sub(1)),
+                Increment::Forward => tmp_selection
+                    .and_then(|index| match index + 1 {
+                        x if x < inner.items.len() => Some(x),
+                        _ => None,
+                    })
+                    .or_else(|| if inner.items.len() > 0 { Some(0) } else { None }),
+            };
+        }
+
+        // Apply any changes in the selection.
+        inner.set_selection(tmp_selection);
+
+        if inner.start_one_shot.step_and_is_firing(input.start) {
+            let gui_result = inner.menu.on_start_pressed(game);
+            if inner.handle_gui_result(&self.inner, gui_result) {
+                return;
+            }
+        }
+
+        if inner.confirm_one_shot.step_and_is_firing(input.confirm) {
+            if let Some(index) = inner.selection {
+                let gui_result = inner.menu.invoke_item(index, game);
+                if inner.handle_gui_result(&self.inner, gui_result) {
+                    return;
+                }
+            }
+        }
     }
 
     fn step_and_interpret_increments(
@@ -226,19 +166,163 @@ impl GuiState {
     }
 }
 
-impl Drop for GuiState {
-    fn drop(&mut self) {
+impl InnerGuiState {
+    fn actuate(&mut self, inner: &Arc<Mutex<InnerGuiState>>) {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let gui = document.get_element_by_id("gui").unwrap();
 
+        // Remove all item event listeners. In particular, the mousemove/mouseout events may fire
+        // while the items are being removed, which could cause inappropriate state changes.
+        for ((item, mousemove_callback), click_callback) in self
+            .items
+            .iter()
+            .zip(&self.mousemove_callbacks)
+            .zip(&self.click_callbacks)
+        {
+            item.remove_event_listener_with_callback(
+                "mousemove",
+                mousemove_callback.as_ref().unchecked_ref(),
+            )
+            .unwrap();
+            item.remove_event_listener_with_callback(
+                "mouseout",
+                self.mouseout_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            )
+            .unwrap();
+            item.remove_event_listener_with_callback(
+                "click",
+                click_callback.as_ref().unchecked_ref(),
+            )
+            .unwrap();
+        }
+
+        self.items.clear();
         while let Some(child) = gui.last_child() {
             gui.remove_child(&child).unwrap();
         }
-    }
-}
+        self.selection = None;
+        self.event_queue.clear();
+        self.mousemove_callbacks.clear();
+        self.mouseout_callback = None;
+        self.click_callbacks.clear();
 
-impl InnerGuiState {
+        if let Some(heading) = self.menu.heading() {
+            gui.append_child(
+                {
+                    let element: HtmlElement =
+                        document.create_element("div").unwrap().dyn_into().unwrap();
+                    element.set_class_name(match heading.style {
+                        HeadingStyle::Regular => "heading",
+                        HeadingStyle::Title => "heading title",
+                    });
+                    element.set_text_content(Some(heading.text));
+                    element
+                }
+                .as_ref(),
+            )
+            .unwrap();
+        }
+
+        gui.append_child(
+            {
+                let element: HtmlElement =
+                    document.create_element("div").unwrap().dyn_into().unwrap();
+                element.set_class_name("expand");
+                element
+            }
+            .as_ref(),
+        )
+        .unwrap();
+
+        for (index, item) in self.menu.items().iter().copied().enumerate() {
+            gui.append_child(
+                {
+                    let element: HtmlElement =
+                        document.create_element("div").unwrap().dyn_into().unwrap();
+                    element.set_class_name(if index == 0 {
+                        "button selected"
+                    } else {
+                        "button"
+                    });
+                    element.set_text_content(Some(item));
+                    self.items.push(element.clone());
+                    element
+                }
+                .as_ref(),
+            )
+            .unwrap();
+        }
+        if self.items.len() > 0 {
+            self.selection = Some(0)
+        }
+
+        gui.append_child(
+            {
+                let element: HtmlElement =
+                    document.create_element("div").unwrap().dyn_into().unwrap();
+                element.set_class_name("expand");
+                element
+            }
+            .as_ref(),
+        )
+        .unwrap();
+
+        let mouseout_callback = Closure::wrap(Box::new({
+            let inner = Arc::clone(&inner);
+            move || {
+                inner
+                    .lock()
+                    .unwrap()
+                    .event_queue
+                    .push_back(Event::Select(None));
+            }
+        }) as Box<dyn FnMut()>);
+        for (index, item) in self.items.iter().enumerate() {
+            let mousemove_callback = Closure::wrap(Box::new({
+                let inner = Arc::clone(&inner);
+                move || {
+                    inner
+                        .lock()
+                        .unwrap()
+                        .event_queue
+                        .push_back(Event::Select(Some(index)));
+                }
+            }) as Box<dyn FnMut()>);
+            item.add_event_listener_with_callback(
+                "mousemove",
+                mousemove_callback.as_ref().unchecked_ref(),
+            )
+            .unwrap();
+            self.mousemove_callbacks.push(mousemove_callback);
+
+            item.add_event_listener_with_callback(
+                "mouseout",
+                mouseout_callback.as_ref().unchecked_ref(),
+            )
+            .unwrap();
+
+            let click_callback = Closure::wrap(Box::new({
+                let inner = Arc::clone(&inner);
+                move || {
+                    inner
+                        .lock()
+                        .unwrap()
+                        .event_queue
+                        .push_back(Event::Confirm(index));
+                }
+            }) as Box<dyn FnMut()>);
+            item.add_event_listener_with_callback("click", click_callback.as_ref().unchecked_ref())
+                .unwrap();
+            self.click_callbacks.push(click_callback);
+        }
+        self.mouseout_callback = Some(mouseout_callback);
+    }
+
     fn set_selection(&mut self, selection: Option<usize>) {
         if selection != self.selection {
             if let Some(index) = self.selection {
@@ -250,6 +334,27 @@ impl InnerGuiState {
             }
         }
     }
+
+    #[must_use]
+    fn handle_gui_result(
+        &mut self,
+        inner: &Arc<Mutex<InnerGuiState>>,
+        gui_result: GuiResult,
+    ) -> bool {
+        match gui_result {
+            GuiResult::Ok => false,
+            GuiResult::ReplaceMenu(menu) => {
+                self.menu = menu;
+                self.actuate(inner);
+                true
+            }
+        }
+    }
+}
+
+enum Event {
+    Select(Option<usize>),
+    Confirm(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -313,22 +418,27 @@ enum Increment {
     Forward,
 }
 
+pub struct Heading<'a> {
+    style: HeadingStyle,
+    text: &'a str,
+}
+
+pub enum HeadingStyle {
+    Regular,
+    Title,
+}
+
 pub trait Menu: Debug {
-    fn title(&self) -> &str;
+    fn heading(&self) -> Option<Heading<'_>>;
     fn items(&self) -> &[&str];
-    fn invoke_item(&mut self, index: usize, game: &mut Game) -> InvokeItemResult;
+    fn on_start_pressed(&mut self, game: &mut Game) -> GuiResult;
+    fn invoke_item(&mut self, index: usize, game: &mut Game) -> GuiResult;
 }
 
 #[derive(Debug)]
 #[must_use]
-pub enum GuiStepResult {
+pub enum GuiResult {
     Ok,
-    ReplaceWithMenu(Option<Box<dyn Menu>>),
-}
-
-#[derive(Debug)]
-#[must_use]
-pub enum InvokeItemResult {
-    ReplaceMenu(Option<Box<dyn Menu>>),
+    ReplaceMenu(Box<dyn Menu>),
     // TODO: deny option with animation and sound
 }

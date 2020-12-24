@@ -19,6 +19,7 @@ pub type Vec2 = cgmath::Vector2<f32>;
 pub struct Game {
     rng: Pcg32,
     world: World,
+    is_paused: bool,
 
     step_resources: Resources,
     step_schedule: Schedule,
@@ -41,6 +42,7 @@ impl Game {
         Game {
             rng,
             world,
+            is_paused: false,
 
             step_resources: Resources::default(),
             step_schedule: Schedule::builder()
@@ -73,6 +75,14 @@ impl Game {
 
     pub fn rng_and_world_mut(&mut self) -> (&mut impl Rng, &mut World) {
         (&mut self.rng, &mut self.world)
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.is_paused
+    }
+
+    pub fn set_is_paused(&mut self, is_paused: bool) {
+        self.is_paused = is_paused;
     }
 
     pub fn step(&mut self, elapsed_seconds: f32, input: Input) {

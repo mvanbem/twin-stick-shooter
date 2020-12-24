@@ -40,8 +40,7 @@ body {
     flex-flow: column nowrap;
 }
 
-.title {
-    font-size: 2em;
+.heading {
     text-align: center;
     padding: 0.5em 1em;
     background-color: #2196f3;
@@ -58,6 +57,10 @@ body {
     align-items: center;
 }
 
+.title {
+    font-size: 2em;
+}
+
 .expand {
     flex-grow: 1;
 }
@@ -68,6 +71,7 @@ body {
     padding: 0.5em 2.0em;
     margin: 0.25em 0.5em;
     cursor: pointer;
+    font-weight: bold;
 
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -76,8 +80,9 @@ body {
 }
 
 .button.selected {
-    border-color: #ff9100;
-    color: #ff9100;
+    border-color: #ff4081;
+    background-color: #ff4081;
+    color: #000;
     padding-left: 0;
 }
 

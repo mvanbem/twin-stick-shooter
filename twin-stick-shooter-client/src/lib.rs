@@ -10,15 +10,16 @@ use web_sys::{
     KeyboardEvent, Window,
 };
 
+mod action;
 mod draw;
 mod gui;
 mod style;
 mod time_accumulator;
 
-use gui::{GuiState, MainMenu};
+use gui::title::TitleMenu;
+use gui::GuiState;
 use time_accumulator::{Seconds, TimeAccumulator};
 
-use crate::gui::GuiStepResult;
 use crate::time_accumulator::Milliseconds;
 
 pub struct App {
@@ -29,7 +30,7 @@ pub struct App {
     keys: HashMap<String, bool>,
     key_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
 
-    gui: Option<GuiState>,
+    gui: GuiState,
 
     canvas: HtmlCanvasElement,
     ctx: CanvasRenderingContext2d,
@@ -73,11 +74,16 @@ pub fn launch() {
         keys: "wasdijkl "
             .chars()
             .map(|c| (c.to_string(), false))
-            .chain((&["Enter"]).iter().copied().map(|s| (s.to_string(), false)))
+            .chain(
+                (&["Enter", "Escape"])
+                    .iter()
+                    .copied()
+                    .map(|s| (s.to_string(), false)),
+            )
             .collect(),
         key_callback: None,
 
-        gui: Some(GuiState::new(Box::new(MainMenu))),
+        gui: GuiState::new(Box::new(TitleMenu)),
 
         canvas,
         ctx,
@@ -159,19 +165,7 @@ impl App {
         self.update_dimensions(&window);
 
         let input = self.sample_input(&window);
-        if let Some(ref mut gui) = self.gui {
-            if let Some(Seconds(elapsed_seconds)) = elapsed_seconds {
-                match gui.step(&Time { elapsed_seconds }, &input, &mut self.game) {
-                    GuiStepResult::Ok => (),
-                    GuiStepResult::ReplaceWithMenu(menu) => {
-                        self.gui = menu.map(|menu| GuiState::new(menu));
-                    }
-                }
-            }
-        }
-        while self.time_accumulator.try_consume(App::FIXED_TIMESTEP) {
-            self.game.step(App::FIXED_TIMESTEP.seconds(), input.clone());
-        }
+        self.step(elapsed_seconds, &input);
 
         self.interpolate();
         draw::draw(&self.canvas, &self.ctx, &self.game, &input);
@@ -238,6 +232,7 @@ impl App {
                     dpad_up: buttons.get(12).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                     dpad_down: buttons.get(13).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                     confirm: buttons.get(0).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
+                    start: buttons.get(9).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                 })
             })
             .next()
@@ -258,12 +253,33 @@ impl App {
                 dpad_up: false,
                 dpad_down: false,
                 confirm: self.get_key("Enter"),
+                start: self.get_key("Escape"),
             })
     }
 
+    fn step(&mut self, elapsed_seconds: Option<Seconds>, input: &Input) {
+        if let Some(Seconds(elapsed_seconds)) = elapsed_seconds {
+            self.gui
+                .step(&Time { elapsed_seconds }, &input, &mut self.game);
+        }
+        if self.game.is_paused() {
+            // Prevent the time accumulator from filling while paused. Otherwise, after unpause the
+            // game will make several steps as if it needed to catch up.
+            self.time_accumulator
+                .try_consume(self.time_accumulator.accumulator());
+        } else {
+            while self.time_accumulator.try_consume(App::FIXED_TIMESTEP) {
+                self.game.step(App::FIXED_TIMESTEP.seconds(), input.clone());
+            }
+        }
+    }
+
     fn interpolate(&mut self) {
-        self.game.interpolate(Subframe(
-            self.time_accumulator.accumulator() / App::FIXED_TIMESTEP,
-        ));
+        let subframe = Subframe(if self.game.is_paused() {
+            1.0
+        } else {
+            self.time_accumulator.accumulator() / App::FIXED_TIMESTEP
+        });
+        self.game.interpolate(subframe);
     }
 }

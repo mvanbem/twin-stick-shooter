@@ -1,6 +1,5 @@
-use std::ops::Div;
-
 use derive_more::{Add, Sub, SubAssign};
+use std::ops::Div;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Add, SubAssign)]
 pub struct Seconds(pub f32);
@@ -64,7 +63,7 @@ impl TimeAccumulator {
     }
 
     pub fn try_consume(&mut self, dt: Seconds) -> bool {
-        if self.accumulator > dt {
+        if self.accumulator >= dt {
             self.accumulator -= dt;
             true
         } else {

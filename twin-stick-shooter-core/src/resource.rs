@@ -20,4 +20,5 @@ pub struct Input {
     pub dpad_up: bool,
     pub dpad_down: bool,
     pub confirm: bool,
+    pub start: bool,
 }
