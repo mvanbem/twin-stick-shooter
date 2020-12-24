@@ -33,7 +33,6 @@ impl Game {
         let mut seed = <Pcg32 as SeedableRng>::Seed::default();
         getrandom::getrandom(&mut seed[..]).unwrap_or_else(|_| {
             eprintln!("WARNING: getrandom() failed; proceeding with default random seed");
-            ()
         });
         let rng = Pcg32::from_seed(seed);
 
@@ -96,5 +95,11 @@ impl Game {
         self.interpolate_resources.insert(subframe);
         self.interpolate_schedule
             .execute(&mut self.world, &mut self.interpolate_resources);
+    }
+}
+
+impl Default for Game {
+    fn default() -> Self {
+        Game::new()
     }
 }

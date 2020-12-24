@@ -211,7 +211,7 @@ async fn serve_static_content(
 ) -> Result<Response<Body>, hyper::http::Error> {
     let mut local_path = static_content_path.to_path_buf();
     local_path.extend(req.uri().path().split('/'));
-    if req.uri().path().ends_with("/") {
+    if req.uri().path().ends_with('/') {
         local_path.push("index.html");
     }
     match File::open(&local_path).await {

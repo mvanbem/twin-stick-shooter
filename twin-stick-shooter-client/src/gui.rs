@@ -91,7 +91,13 @@ impl GuiState {
                         x if x < inner.items.len() => Some(x),
                         _ => None,
                     })
-                    .or_else(|| if inner.items.len() > 0 { Some(0) } else { None }),
+                    .or_else(|| {
+                        if !inner.items.is_empty() {
+                            Some(0)
+                        } else {
+                            None
+                        }
+                    }),
             };
         }
 
@@ -257,7 +263,7 @@ impl InnerGuiState {
             )
             .unwrap();
         }
-        if self.items.len() > 0 {
+        if !self.items.is_empty() {
             self.selection = Some(0)
         }
 
