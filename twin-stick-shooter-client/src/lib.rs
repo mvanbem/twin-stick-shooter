@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::JsCast;
 use web_sys::{
     CanvasRenderingContext2d, Gamepad, GamepadButton, GamepadMappingType, HtmlCanvasElement,
-    KeyboardEvent, Window,
+    KeyboardEvent, TouchEvent, Window,
 };
 
 mod action;
@@ -29,6 +29,9 @@ pub struct App {
 
     keys: HashMap<String, bool>,
     key_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+    touch_start_input: bool,
+    active_touches: usize,
+    touch_callback: Option<Closure<dyn FnMut(TouchEvent)>>,
 
     gui: GuiState,
 
@@ -82,6 +85,9 @@ pub fn launch() {
             )
             .collect(),
         key_callback: None,
+        touch_start_input: false,
+        active_touches: 0,
+        touch_callback: None,
 
         gui: GuiState::new(Box::new(TitleMenu)),
 
@@ -122,6 +128,68 @@ pub fn launch() {
             "keyup",
             app_mut
                 .key_callback
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unchecked_ref(),
+        )
+        .unwrap();
+
+    // Hook touch events on the canvas in order to provide a start/pause button on mobile touch. If
+    // the touch opens a GUI menu over the touch point, it seems to respond immediately to the touch
+    // on release. This amusing logic temporarily applies an `unstable` CSS class to the root GUI
+    // element, which activates an override to disable pointer events while it's present. The
+    // `touchend` handler calls `preventDefault()`, which also appears to be necessary to prevent
+    // unwanted interaction with the newly shown elements.
+    app_mut.touch_callback = Some(Closure::wrap(Box::new({
+        let app = Arc::clone(&app);
+        move |e: TouchEvent| {
+            let mut app_mut = app.lock().unwrap();
+            match &*e.type_() {
+                "touchstart" => {
+                    app_mut.touch_start_input = true;
+                    app_mut.active_touches += 1;
+
+                    let window = web_sys::window().unwrap();
+                    let document = window.document().unwrap();
+                    let gui = document.get_element_by_id("gui").unwrap();
+                    gui.set_class_name("gui unstable");
+                }
+                "touchend" => {
+                    app_mut.active_touches = app_mut.active_touches.checked_sub(1).unwrap_or(0);
+                    if app_mut.active_touches == 0 {
+                        app_mut.touch_start_input = false;
+                    }
+
+                    let window = web_sys::window().unwrap();
+                    let document = window.document().unwrap();
+                    let gui = document.get_element_by_id("gui").unwrap();
+                    gui.set_class_name("gui");
+
+                    e.prevent_default();
+                }
+                _ => unreachable!(),
+            }
+        }
+    }) as Box<dyn FnMut(TouchEvent)>));
+    app_mut
+        .canvas
+        .add_event_listener_with_callback(
+            "touchstart",
+            app_mut
+                .touch_callback
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unchecked_ref(),
+        )
+        .unwrap();
+    app_mut
+        .canvas
+        .add_event_listener_with_callback(
+            "touchend",
+            app_mut
+                .touch_callback
                 .as_ref()
                 .unwrap()
                 .as_ref()
@@ -232,7 +300,8 @@ impl App {
                     dpad_up: buttons.get(12).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                     dpad_down: buttons.get(13).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                     confirm: buttons.get(0).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
-                    start: buttons.get(9).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
+                    start: self.touch_start_input
+                        || buttons.get(9).dyn_into::<GamepadButton>().unwrap().value() > 0.5,
                 })
             })
             .next()
@@ -253,7 +322,7 @@ impl App {
                 dpad_up: false,
                 dpad_down: false,
                 confirm: self.get_key("Enter"),
-                start: self.get_key("Escape"),
+                start: self.touch_start_input || self.get_key("Escape"),
             })
     }
 

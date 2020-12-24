@@ -76,7 +76,7 @@ impl Menu for QuitGameMenu {
         match index {
             0 => GuiResult::ReplaceMenu(Box::new(PausedInGameMenu)),
             1 => {
-                game.world_mut().clear();
+                game.reset();
                 GuiResult::ReplaceMenu(Box::new(TitleMenu))
             }
             _ => unreachable!(),

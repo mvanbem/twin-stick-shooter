@@ -32,9 +32,10 @@ body {
     bottom: 0;
     z-index: 2;
     overflow: auto;
-
+    
     font: 50px sans-serif;
     color: #fff;
+    pointer-events: none;
 
     display: flex;
     flex-flow: column nowrap;
@@ -71,7 +72,7 @@ body {
     padding: 0.5em 2.0em;
     margin: 0.25em 0.5em;
     cursor: pointer;
-    font-weight: bold;
+    pointer-events: auto;
 
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -79,11 +80,16 @@ body {
     user-select: none;
 }
 
+#gui.unstable .button {
+    pointer-events: none;
+}
+
 .button.selected {
     border-color: #ff4081;
     background-color: #ff4081;
     color: #000;
     padding-left: 0;
+    font-weight: bold;
 }
 
 .button.selected::before {

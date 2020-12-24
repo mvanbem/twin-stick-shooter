@@ -33,6 +33,7 @@ struct InnerGuiState {
     mousemove_callbacks: Vec<Closure<dyn FnMut()>>,
     mouseout_callback: Option<Closure<dyn FnMut()>>,
     click_callbacks: Vec<Closure<dyn FnMut()>>,
+    touchstart_callbacks: Vec<Closure<dyn FnMut()>>,
 }
 
 impl GuiState {
@@ -54,6 +55,7 @@ impl GuiState {
                 mousemove_callbacks: vec![],
                 mouseout_callback: None,
                 click_callbacks: vec![],
+                touchstart_callbacks: vec![],
             })),
         };
         gui.inner.lock().unwrap().actuate(&gui.inner);
@@ -325,6 +327,23 @@ impl InnerGuiState {
             item.add_event_listener_with_callback("click", click_callback.as_ref().unchecked_ref())
                 .unwrap();
             self.click_callbacks.push(click_callback);
+
+            let touchstart_callback = Closure::wrap(Box::new({
+                let inner = Arc::clone(&inner);
+                move || {
+                    inner
+                        .lock()
+                        .unwrap()
+                        .event_queue
+                        .push_back(Event::Select(Some(index)));
+                }
+            }) as Box<dyn FnMut()>);
+            item.add_event_listener_with_callback(
+                "touchstart",
+                touchstart_callback.as_ref().unchecked_ref(),
+            )
+            .unwrap();
+            self.touchstart_callbacks.push(touchstart_callback);
         }
         self.mouseout_callback = Some(mouseout_callback);
     }

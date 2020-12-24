@@ -84,6 +84,11 @@ impl Game {
         self.is_paused = is_paused;
     }
 
+    pub fn reset(&mut self) {
+        self.is_paused = false;
+        self.world.clear();
+    }
+
     pub fn step(&mut self, elapsed_seconds: f32, input: Input) {
         self.step_resources.insert(Time { elapsed_seconds });
         self.step_resources.insert(input);

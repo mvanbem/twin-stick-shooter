@@ -58,24 +58,21 @@ pub fn player_act(
     &Velocity(vel): &Velocity,
     plan: &mut PlayerPlan,
 ) {
-    match plan.shoot {
-        Some(dir) => {
-            let bullet_pos = pos + dir.normalize_to(20.0);
-            cmd.push((
-                Position(bullet_pos),
-                PrevPosition(bullet_pos),
-                InterpolatedPosition(bullet_pos),
-                Velocity(vel + dir.normalize_to(1000.0)),
-                Lifespan(Timer::with_remaining(2.0)),
-                Hitbox {
-                    shape: Circle { radius: 5.0 }.into(),
-                    mask: CollisionMask::TARGET,
-                    damage: 1.0,
-                },
-                HitboxState::default(),
-                RemoveOnHit,
-            ));
-        }
-        None => (),
+    if let Some(dir) = plan.shoot {
+        let bullet_pos = pos + dir.normalize_to(20.0);
+        cmd.push((
+            Position(bullet_pos),
+            PrevPosition(bullet_pos),
+            InterpolatedPosition(bullet_pos),
+            Velocity(vel + dir.normalize_to(1000.0)),
+            Lifespan(Timer::with_remaining(2.0)),
+            Hitbox {
+                shape: Circle { radius: 5.0 }.into(),
+                mask: CollisionMask::TARGET,
+                damage: 1.0,
+            },
+            HitboxState::default(),
+            RemoveOnHit,
+        ));
     }
 }

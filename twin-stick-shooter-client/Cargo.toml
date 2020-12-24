@@ -50,5 +50,6 @@ features = [
     "Navigator",
     "Node",
     "TextMetrics",
+    "TouchEvent",
     "Window",
 ]
