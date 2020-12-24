@@ -18,7 +18,7 @@ impl Menu for TitleMenu {
     }
 
     fn items(&self) -> &[&str] {
-        &["Online Multiplayer", "Single Player", "Third Option"]
+        &["New Game"]
     }
 
     fn on_start_pressed(&mut self, _game: &mut Game) -> GuiResult {
@@ -26,9 +26,7 @@ impl Menu for TitleMenu {
     }
 
     fn invoke_item(&mut self, _index: usize, game: &mut Game) -> GuiResult {
-        // TODO: don't just disregard the index
         action::create_game(game);
-
         GuiResult::ReplaceMenu(Box::new(RunningInGameMenu))
     }
 }

@@ -20,10 +20,10 @@ pub use player::{player_act_system, player_plan_system};
 pub fn lifespan(
     cmd: &mut CommandBuffer,
     entity: &Entity,
-    lifespan: &mut Lifespan,
+    Lifespan(lifespan): &mut Lifespan,
     #[resource] time: &Time,
 ) {
-    if lifespan.0.step_and_is_elapsed(time) {
+    if lifespan.step_and_is_elapsed(time) {
         cmd.remove(*entity);
     }
 }
@@ -32,19 +32,19 @@ pub fn lifespan(
 pub fn physics(
     #[resource] time: &Time,
     mass: Option<&Mass>,
-    pos: &mut Position,
+    Position(pos): &mut Position,
     prev_pos: Option<&mut PrevPosition>,
-    vel: &mut Velocity,
+    Velocity(vel): &mut Velocity,
     force: Option<&mut ForceAccumulator>,
 ) {
-    if let (Some(mass), Some(force)) = (mass, force) {
-        vel.0 += force.0 * mass.inv_mass() * time.elapsed_seconds;
-        force.0 = zero();
+    if let (Some(mass), Some(ForceAccumulator(force))) = (mass, force) {
+        *vel += *force * mass.inv_mass() * time.elapsed_seconds;
+        *force = zero();
     }
-    if let Some(prev_pos) = prev_pos {
-        prev_pos.0 = pos.0;
+    if let Some(PrevPosition(prev_pos)) = prev_pos {
+        *prev_pos = *pos;
     }
-    pos.0 += vel.0 * time.elapsed_seconds;
+    *pos += *vel * time.elapsed_seconds;
 }
 
 #[legion::system]
@@ -79,18 +79,16 @@ pub fn collide(world: &mut SubWorld) {
             .flat_map(|chunk| chunk.into_iter_entities())
         {
             if hitbox_entity != hurtbox_entity && hitbox.mask.overlaps(hurtbox.mask) {
-                let hitbox_pos = position_world
+                let &Position(hitbox_pos) = position_world
                     .entry_ref(hitbox_entity)
                     .unwrap()
                     .get_component::<Position>()
-                    .unwrap()
-                    .0;
-                let hurtbox_pos = position_world
+                    .unwrap();
+                let &Position(hurtbox_pos) = position_world
                     .entry_ref(hurtbox_entity)
                     .unwrap()
                     .get_component::<Position>()
-                    .unwrap()
-                    .0;
+                    .unwrap();
                 if Shape::test(&hitbox.shape, hitbox_pos, &hurtbox.shape, hurtbox_pos) {
                     hitbox_state.hit_entities.push(hurtbox_entity);
                     hurtbox_state.hit_by_entities.push(hitbox_entity);
@@ -107,10 +105,8 @@ pub fn damage(
     world: &SubWorld,
     entity: &Entity,
     hurtbox_state: &HurtboxState,
-    health: &mut Health,
+    Health(health): &mut Health,
 ) {
-    let Health(ref mut health) = health;
-
     // Take damage from all colliding hitboxes.
     for hitbox_entity in &hurtbox_state.hit_by_entities {
         let hitbox: &Hitbox = world
@@ -128,25 +124,29 @@ pub fn damage(
 
 #[legion::system(for_each)]
 pub fn interpolate(
-    pos: &Position,
-    prev_pos: &PrevPosition,
-    interpolated_pos: &mut InterpolatedPosition,
-    #[resource] subframe: &Subframe,
+    &Position(pos): &Position,
+    &PrevPosition(prev_pos): &PrevPosition,
+    InterpolatedPosition(interpolated_pos): &mut InterpolatedPosition,
+    #[resource] &Subframe(subframe): &Subframe,
 ) {
-    interpolated_pos.0 = Vec2::lerp(prev_pos.0, pos.0, subframe.0);
+    *interpolated_pos = Vec2::lerp(prev_pos, pos, subframe);
 }
 
 #[legion::system(for_each)]
-pub fn reflect_within(pos: &Position, vel: &mut Velocity, reflect_within: &ReflectWithin) {
+pub fn reflect_within(
+    &Position(pos): &Position,
+    Velocity(vel): &mut Velocity,
+    &ReflectWithin(reflect_within): &ReflectWithin,
+) {
     // Check if the entity is outside the reflecting circle.
-    if pos.0.magnitude() >= reflect_within.0 {
+    if pos.magnitude() >= reflect_within {
         // Check if the entity's velocity is outward.
-        let radial = vel.0.dot(pos.0.normalize());
+        let radial = vel.dot(pos.normalize());
         if radial > 0.0 {
             // Reflect the entity's velocity inward by subtracting the radial component twice. Note
             // that subtracting once would merely put its motion perpendicular to the reflecting
             // circle.
-            vel.0 -= pos.0.normalize_to(2.0 * radial);
+            *vel -= pos.normalize_to(2.0 * radial);
         }
     }
 }

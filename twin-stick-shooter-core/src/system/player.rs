@@ -12,8 +12,8 @@ use crate::util::Timer;
 
 #[legion::system(for_each)]
 pub fn player_plan(
-    vel: &Velocity,
-    force: &mut ForceAccumulator,
+    &Velocity(vel): &Velocity,
+    ForceAccumulator(force): &mut ForceAccumulator,
     mass: &Mass,
     player: &mut Player,
     plan: &mut PlayerPlan,
@@ -31,8 +31,8 @@ pub fn player_plan(
         }
     };
     let goal_vel = 250.0 * deadzoned_move;
-    let goal_force = (goal_vel - vel.0) * mass.mass() / time.elapsed_seconds;
-    force.0 += {
+    let goal_force = (goal_vel - vel) * mass.mass() / time.elapsed_seconds;
+    *force += {
         let r = goal_force.magnitude();
         const MAX_FORCE: f32 = 1.0e6;
         if r < MAX_FORCE {
@@ -52,22 +52,30 @@ pub fn player_plan(
 }
 
 #[legion::system(for_each)]
-pub fn player_act(cmd: &mut CommandBuffer, pos: &Position, vel: &Velocity, plan: &mut PlayerPlan) {
-    if let Some(dir) = plan.shoot {
-        let bullet_pos = pos.0 + dir.normalize_to(20.0);
-        cmd.push((
-            Position(bullet_pos),
-            PrevPosition(bullet_pos),
-            InterpolatedPosition(bullet_pos),
-            Velocity(vel.0 + dir.normalize_to(1000.0)),
-            Lifespan(Timer::with_remaining(2.0)),
-            Hitbox {
-                shape: Circle { radius: 5.0 }.into(),
-                mask: CollisionMask::TARGET,
-                damage: 1.0,
-            },
-            HitboxState::default(),
-            RemoveOnHit,
-        ));
+pub fn player_act(
+    cmd: &mut CommandBuffer,
+    &Position(pos): &Position,
+    &Velocity(vel): &Velocity,
+    plan: &mut PlayerPlan,
+) {
+    match plan.shoot {
+        Some(dir) => {
+            let bullet_pos = pos + dir.normalize_to(20.0);
+            cmd.push((
+                Position(bullet_pos),
+                PrevPosition(bullet_pos),
+                InterpolatedPosition(bullet_pos),
+                Velocity(vel + dir.normalize_to(1000.0)),
+                Lifespan(Timer::with_remaining(2.0)),
+                Hitbox {
+                    shape: Circle { radius: 5.0 }.into(),
+                    mask: CollisionMask::TARGET,
+                    damage: 1.0,
+                },
+                HitboxState::default(),
+                RemoveOnHit,
+            ));
+        }
+        None => (),
     }
 }
