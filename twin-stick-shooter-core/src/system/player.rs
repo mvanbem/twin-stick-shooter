@@ -65,7 +65,7 @@ pub fn player_act(
             PrevPosition(bullet_pos),
             InterpolatedPosition(bullet_pos),
             Velocity(vel + dir.normalize_to(1000.0)),
-            Lifespan(Timer::with_remaining(2.0)),
+            Lifespan(Timer::with_remaining(1.0)),
             Hitbox {
                 shape: Circle { radius: 5.0 }.into(),
                 dbvt_index: None,

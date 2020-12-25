@@ -1,24 +1,18 @@
 use cgmath::num_traits::zero;
-use cgmath::{vec2, InnerSpace, VectorSpace};
-use collision::dbvt::{DiscreteVisitor, DynamicBoundingVolumeTree, TreeValueWrapped};
-use collision::ComputeBound;
+use cgmath::{InnerSpace, VectorSpace};
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
-use legion::{Entity, EntityStore, IntoQuery};
-use rand_pcg::Pcg32;
-use std::collections::HashMap;
+use legion::{Entity, EntityStore};
 
-use crate::collision::Aabb;
 use crate::component::{
-    ForceAccumulator, Health, Hitbox, HitboxState, Hurtbox, HurtboxState, InterpolatedPosition,
-    Lifespan, Mass, Position, PrevPosition, ReflectWithin, RemoveOnHit, Velocity,
+    ForceAccumulator, Health, Hitbox, HitboxState, HurtboxState, InterpolatedPosition, Lifespan,
+    Mass, Position, PrevPosition, ReflectWithin, RemoveOnHit, Velocity,
 };
 use crate::resource::{Subframe, Time};
 use crate::Vec2;
 
-mod player;
-
-pub use player::{player_act_system, player_plan_system};
+pub mod collide;
+pub mod player;
 
 #[legion::system(for_each)]
 pub fn lifespan(
@@ -49,100 +43,6 @@ pub fn physics(
         *prev_pos = *pos;
     }
     *pos += *vel * time.elapsed_seconds;
-}
-
-#[legion::system]
-#[read_component(Position)]
-#[write_component(Hitbox)]
-#[write_component(HitboxState)]
-#[write_component(Hurtbox)]
-#[write_component(HurtboxState)]
-pub fn collide(
-    #[state] dbvt: &mut DynamicBoundingVolumeTree<TreeValueWrapped<Entity, Aabb>>,
-    world: &mut SubWorld,
-    #[resource] rng: &mut Pcg32,
-) {
-    const COLLISION_MARGIN: Vec2 = vec2(25.0, 25.0);
-    let mut hitbox_entities_by_dbvt_index = HashMap::new();
-
-    // Update all hitboxes.
-    for (entity, (hitbox, hitbox_state)) in <(&mut Hitbox, &mut HitboxState)>::query()
-        .iter_chunks_mut(world)
-        .flat_map(|chunk| chunk.into_iter_entities())
-    {
-        let value = TreeValueWrapped::new(entity, hitbox.shape.compute_bound(), COLLISION_MARGIN);
-        match hitbox.dbvt_index {
-            Some(index) => dbvt.update_node(index, value),
-            None => hitbox.dbvt_index = Some(dbvt.insert(value)),
-        }
-        hitbox_entities_by_dbvt_index.insert(hitbox.dbvt_index.unwrap(), entity);
-        hitbox_state.hit_entities.clear();
-    }
-
-    // Update all hurtboxes.
-    for (_entity, (_hurtbox, hurtbox_state)) in <(&mut Hurtbox, &mut HurtboxState)>::query()
-        .iter_chunks_mut(world)
-        .flat_map(|chunk| chunk.into_iter_entities())
-    {
-        hurtbox_state.hit_by_entities.clear();
-    }
-
-    // Remove any unreferenced DBVT nodes.
-    // TODO: Figure out a way to gather these eagerly into a per-frame list?
-    let remove_indices: Vec<usize> = dbvt
-        .values()
-        .iter()
-        .filter_map(|&(index, _)| {
-            if hitbox_entities_by_dbvt_index.contains_key(&index) {
-                None
-            } else {
-                Some(index)
-            }
-        })
-        .collect();
-    for index in remove_indices.into_iter() {
-        dbvt.remove(index);
-    }
-
-    // Process all collision pairs.
-    let mut hurtbox_query = <(&Hurtbox, &mut HurtboxState)>::query();
-    let (mut hurtbox_world, mut world) = world.split_for_query(&hurtbox_query);
-    let (position_world, mut hitbox_world) = world.split::<&Position>();
-    dbvt.tick_with_rng(rng);
-    for (hurtbox_entity, (hurtbox, hurtbox_state)) in hurtbox_query
-        .iter_chunks_mut(&mut hurtbox_world)
-        .flat_map(|chunk| chunk.into_iter_entities())
-    {
-        let bound = hurtbox.shape.compute_bound();
-        let &Position(hurtbox_pos) = position_world
-            .entry_ref(hurtbox_entity)
-            .unwrap()
-            .into_component()
-            .unwrap();
-        for (value_index, _) in dbvt
-            .query_for_indices(
-                &mut DiscreteVisitor::<Aabb, TreeValueWrapped<Entity, Aabb>>::new(&bound),
-            )
-        {
-            let node_index = dbvt.values()[value_index].0;
-            let hitbox_entity = *hitbox_entities_by_dbvt_index.get(&node_index).unwrap();
-            let mut hitbox_entry = hitbox_world.entry_mut(hitbox_entity).unwrap();
-            let hitbox: &Hitbox = hitbox_entry.get_component().unwrap();
-
-            if hurtbox.mask.overlaps(hitbox.mask) {
-                let &Position(hitbox_pos) = position_world
-                    .entry_ref(hitbox_entity)
-                    .unwrap()
-                    .into_component()
-                    .unwrap();
-                if crate::collision::test(&hurtbox.shape, hurtbox_pos, &hitbox.shape, hitbox_pos) {
-                    hurtbox_state.hit_by_entities.push(hitbox_entity);
-                    let hitbox_state: &mut HitboxState = hitbox_entry.get_component_mut().unwrap();
-                    hitbox_state.hit_entities.push(hurtbox_entity);
-                }
-            }
-        }
-    }
 }
 
 #[legion::system(for_each)]

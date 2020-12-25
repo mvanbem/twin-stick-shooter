@@ -33,6 +33,8 @@ pub fn draw(
     draw_players(ctx, game, input);
     draw_hitboxes(ctx, game);
     draw_hurtboxes(ctx, game);
+
+    draw_debug(ctx, game);
 }
 
 fn draw_players(ctx: &CanvasRenderingContext2d, game: &Game, input: &Input) {
@@ -178,5 +180,18 @@ fn draw_hitboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
             }
             _ => (),
         }
+    }
+}
+
+fn draw_debug(ctx: &CanvasRenderingContext2d, game: &Game) -> () {
+    ctx.set_font("16px sans-serif");
+    ctx.set_fill_style(&JsValue::from_str(&"#fff"));
+    let counters = game.collide_counters();
+    ctx.reset_transform().unwrap();
+
+    let mut y = 16.0;
+    for line in format!("{:#?}", &*counters).lines() {
+        ctx.fill_text(line, 0.0, y).unwrap();
+        y += 16.0;
     }
 }

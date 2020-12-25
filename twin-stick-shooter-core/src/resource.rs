@@ -22,3 +22,18 @@ pub struct Input {
     pub confirm: bool,
     pub start: bool,
 }
+
+#[derive(Debug, Default)]
+pub struct CollideCounters {
+    pub hitboxes: usize,
+    pub hurtboxes: usize,
+    pub dbvt_inserts: usize,
+    pub dbvt_updates: usize,
+    pub dbvt_removes: usize,
+    pub dbvt_queries: usize,
+    pub dbvt_hits: usize,
+    pub mask_hits: usize,
+    pub mask_misses: usize,
+    pub gjk_hits: usize,
+    pub gjk_misses: usize,
+}

@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use ::collision::dbvt::DynamicBoundingVolumeTree;
 use legion::{Resources, Schedule, World};
 use rand::{Rng, SeedableRng};
@@ -9,10 +11,12 @@ pub mod resource;
 pub mod system;
 pub mod util;
 
-use resource::{Input, Subframe, Time};
+use resource::{CollideCounters, Input, Subframe, Time};
+use system::collide::collide_system;
+use system::player::{player_act_system, player_plan_system};
 use system::{
-    collide_system, damage_system, interpolate_system, lifespan_system, physics_system,
-    player_act_system, player_plan_system, reflect_within_system, remove_on_hit_system,
+    damage_system, interpolate_system, lifespan_system, physics_system, reflect_within_system,
+    remove_on_hit_system,
 };
 
 pub type Vec2 = cgmath::Vector2<f32>;
@@ -39,12 +43,15 @@ impl Game {
 
         let world = World::default();
 
+        let mut step_resources = Resources::default();
+        step_resources.insert(CollideCounters::default());
+
         Game {
             rng,
             world,
             is_paused: false,
 
-            step_resources: Resources::default(),
+            step_resources,
             step_schedule: Schedule::builder()
                 .add_system(player_plan_system())
                 .add_system(physics_system())
@@ -83,6 +90,10 @@ impl Game {
 
     pub fn set_is_paused(&mut self, is_paused: bool) {
         self.is_paused = is_paused;
+    }
+
+    pub fn collide_counters(&self) -> impl Deref<Target = CollideCounters> + '_ {
+        self.step_resources.get::<CollideCounters>().unwrap()
     }
 
     pub fn reset(&mut self) {
