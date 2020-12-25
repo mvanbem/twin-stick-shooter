@@ -3,9 +3,10 @@ use cgmath::InnerSpace;
 use js_sys::Array;
 use legion::IntoQuery;
 use twin_stick_shooter_core::collision::Shape;
-use twin_stick_shooter_core::component::{
-    Hitbox, HitboxState, Hurtbox, HurtboxState, InterpolatedPosition, Player, Velocity,
-};
+use twin_stick_shooter_core::hitbox::{Hitbox, HitboxState, Hurtbox, HurtboxState};
+use twin_stick_shooter_core::interpolate::Interpolate;
+use twin_stick_shooter_core::physics::Velocity;
+use twin_stick_shooter_core::player::Player;
 use twin_stick_shooter_core::resource::Input;
 use twin_stick_shooter_core::util::clamp_magnitude;
 use twin_stick_shooter_core::Game;
@@ -39,8 +40,14 @@ pub fn draw(
 
 fn draw_players(ctx: &CanvasRenderingContext2d, game: &Game, input: &Input) {
     // Draw players.
-    for (&InterpolatedPosition(pos), &Velocity(vel), _) in
-        <(&InterpolatedPosition, &Velocity, &Player)>::query().iter(game.world())
+    for (
+        &Interpolate {
+            interpolated_pos: pos,
+            ..
+        },
+        &Velocity(vel),
+        _,
+    ) in <(&Interpolate, &Velocity, &Player)>::query().iter(game.world())
     {
         // Draw a line indicating the aim direction.
         let end = {
@@ -125,8 +132,14 @@ fn draw_players(ctx: &CanvasRenderingContext2d, game: &Game, input: &Input) {
 }
 
 fn draw_hurtboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
-    for (&InterpolatedPosition(pos), hitbox, hitbox_state) in
-        <(&InterpolatedPosition, &Hurtbox, &HurtboxState)>::query().iter(game.world())
+    for (
+        &Interpolate {
+            interpolated_pos: pos,
+            ..
+        },
+        hitbox,
+        hitbox_state,
+    ) in <(&Interpolate, &Hurtbox, &HurtboxState)>::query().iter(game.world())
     {
         let fill_style = if hitbox_state.hit_by_entities.is_empty() {
             format!("{}80", PRIMARY_COLOR)
@@ -154,8 +167,14 @@ fn draw_hurtboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
 }
 
 fn draw_hitboxes(ctx: &CanvasRenderingContext2d, game: &Game) {
-    for (&InterpolatedPosition(pos), hitbox, hitbox_state) in
-        <(&InterpolatedPosition, &Hitbox, &HitboxState)>::query().iter(game.world())
+    for (
+        &Interpolate {
+            interpolated_pos: pos,
+            ..
+        },
+        hitbox,
+        hitbox_state,
+    ) in <(&Interpolate, &Hitbox, &HitboxState)>::query().iter(game.world())
     {
         let fill_style = if hitbox_state.hit_entities.is_empty() {
             format!("{}80", ACCENT_COLOR)

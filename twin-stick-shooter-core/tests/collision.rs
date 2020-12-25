@@ -1,9 +1,14 @@
 use cgmath::vec2;
 use collision::dbvt::DynamicBoundingVolumeTree;
 use legion::{Resources, Schedule, World};
-use twin_stick_shooter_core::collision::{Circle, CollisionMask, Shape};
-use twin_stick_shooter_core::component::{Hitbox, HitboxState, Hurtbox, HurtboxState, Position};
-use twin_stick_shooter_core::system::collide_system;
+use rand::SeedableRng;
+use rand_pcg::Pcg32;
+use twin_stick_shooter_core::collision::{Circle, Shape};
+use twin_stick_shooter_core::hitbox::{
+    hitbox_system, Hitbox, HitboxMask, HitboxState, Hurtbox, HurtboxState,
+};
+use twin_stick_shooter_core::position::Position;
+use twin_stick_shooter_core::resource::CollideCounters;
 
 #[test]
 fn non_overlapping() {
@@ -37,7 +42,7 @@ fn system() {
         Hitbox {
             shape: Shape::Circle(Circle { radius: 2.0 }),
             dbvt_index: None,
-            mask: CollisionMask::TARGET,
+            mask: HitboxMask::TARGET,
             damage: 1.0,
         },
         HitboxState::default(),
@@ -47,7 +52,7 @@ fn system() {
         Hurtbox {
             shape: Shape::Circle(Circle { radius: 3.0 }),
             dbvt_index: None,
-            mask: CollisionMask::TARGET,
+            mask: HitboxMask::TARGET,
         },
         HurtboxState::default(),
     ));
@@ -56,13 +61,15 @@ fn system() {
         Hurtbox {
             shape: Shape::Circle(Circle { radius: 3.0 }),
             dbvt_index: None,
-            mask: CollisionMask::TARGET,
+            mask: HitboxMask::TARGET,
         },
         HurtboxState::default(),
     ));
     let mut resources = Resources::default();
+    resources.insert(Pcg32::from_rng(rand::thread_rng()).unwrap());
+    resources.insert(CollideCounters::default());
     let mut schedule = Schedule::builder()
-        .add_system(collide_system(DynamicBoundingVolumeTree::new()))
+        .add_system(hitbox_system(DynamicBoundingVolumeTree::new()))
         .build();
     schedule.execute(&mut world, &mut resources);
 

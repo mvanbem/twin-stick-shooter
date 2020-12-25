@@ -5,19 +5,26 @@ use legion::{Resources, Schedule, World};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg32;
 
+pub mod bullet;
 pub mod collision;
-pub mod component;
+pub mod health;
+pub mod hitbox;
+pub mod interpolate;
+pub mod physics;
+pub mod player;
+pub mod position;
 pub mod resource;
-pub mod system;
+pub mod test;
 pub mod util;
 
+use bullet::{lifespan_system, remove_on_hit_system};
+use health::damage_system;
+use hitbox::hitbox_system;
+use interpolate::interpolate_system;
+use physics::physics_system;
+use player::{player_act_system, player_plan_system};
 use resource::{CollideCounters, Input, Subframe, Time};
-use system::collide::collide_system;
-use system::player::{player_act_system, player_plan_system};
-use system::{
-    damage_system, interpolate_system, lifespan_system, physics_system, reflect_within_system,
-    remove_on_hit_system,
-};
+use test::reflect_within_system;
 
 pub type Vec2 = cgmath::Vector2<f32>;
 
@@ -57,7 +64,7 @@ impl Game {
                 .add_system(physics_system())
                 .add_system(reflect_within_system())
                 .add_system(player_act_system())
-                .add_system(collide_system(DynamicBoundingVolumeTree::new()))
+                .add_system(hitbox_system(DynamicBoundingVolumeTree::new()))
                 .add_system(damage_system())
                 .add_system(lifespan_system())
                 .add_system(remove_on_hit_system())

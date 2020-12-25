@@ -1,10 +1,13 @@
 use cgmath::num_traits::zero;
 use rand_distr::Distribution;
-use twin_stick_shooter_core::collision::{Circle, CollisionMask};
-use twin_stick_shooter_core::component::{
-    ForceAccumulator, Health, Hurtbox, HurtboxState, InterpolatedPosition, Inventory, Mass, Player,
-    PlayerPlan, Position, PrevPosition, ReflectWithin, Velocity,
-};
+use twin_stick_shooter_core::collision::Circle;
+use twin_stick_shooter_core::health::Health;
+use twin_stick_shooter_core::hitbox::{HitboxMask, Hurtbox, HurtboxState};
+use twin_stick_shooter_core::interpolate::Interpolate;
+use twin_stick_shooter_core::physics::{ForceAccumulator, Mass, Velocity};
+use twin_stick_shooter_core::player::{Inventory, Player, PlayerPlan};
+use twin_stick_shooter_core::position::Position;
+use twin_stick_shooter_core::test::ReflectWithin;
 use twin_stick_shooter_core::util::{Timer, UnitDisc};
 use twin_stick_shooter_core::Game;
 
@@ -18,15 +21,17 @@ pub fn create_game(game: &mut Game) {
         let pos = UnitDisc.sample(rng) * 400.0;
         targets.push((
             Position(pos),
-            PrevPosition(pos),
-            InterpolatedPosition(pos),
+            Interpolate {
+                prev_pos: pos,
+                interpolated_pos: pos,
+            },
             Velocity(UnitDisc.sample(rng) * 100.0),
             ForceAccumulator::default(),
             Mass::new(100.0),
             Hurtbox {
                 shape: Circle { radius: 20.0 }.into(),
                 dbvt_index: None,
-                mask: CollisionMask::TARGET,
+                mask: HitboxMask::TARGET,
             },
             HurtboxState::default(),
             Health(3.0),
@@ -38,8 +43,10 @@ pub fn create_game(game: &mut Game) {
     // Create a player entity.
     world.push((
         Position(zero()),
-        PrevPosition(zero()),
-        InterpolatedPosition(zero()),
+        Interpolate {
+            prev_pos: zero(),
+            interpolated_pos: zero(),
+        },
         Velocity(zero()),
         ForceAccumulator::default(),
         Mass::new(100.0),

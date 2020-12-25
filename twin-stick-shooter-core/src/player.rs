@@ -2,13 +2,30 @@ use cgmath::num_traits::zero;
 use cgmath::InnerSpace;
 use legion::systems::CommandBuffer;
 
-use crate::collision::{Circle, CollisionMask};
-use crate::component::{
-    ForceAccumulator, Hitbox, HitboxState, InterpolatedPosition, Lifespan, Mass, Player,
-    PlayerPlan, Position, PrevPosition, RemoveOnHit, Velocity,
-};
+use crate::bullet::{LifespanComponent, RemoveOnHitComponent};
+use crate::collision::Circle;
+use crate::hitbox::{Hitbox, HitboxMask, HitboxState};
+use crate::interpolate::Interpolate;
+use crate::physics::{ForceAccumulator, Mass, Velocity};
+use crate::position::Position;
 use crate::resource::{Input, Time};
 use crate::util::Timer;
+use crate::Vec2;
+
+#[derive(Clone, Debug)]
+pub struct Player {
+    pub shoot_cooldown: Timer,
+    pub inventory: Inventory,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PlayerPlan {
+    pub shoot: Option<Vec2>,
+}
+
+// TODO: `Inventory` is not a Legion component, so maybe it should go somewhere else?
+#[derive(Clone, Debug)]
+pub struct Inventory {}
 
 #[legion::system(for_each)]
 pub fn player_plan(
@@ -62,18 +79,20 @@ pub fn player_act(
         let bullet_pos = pos + dir.normalize_to(20.0);
         cmd.push((
             Position(bullet_pos),
-            PrevPosition(bullet_pos),
-            InterpolatedPosition(bullet_pos),
+            Interpolate {
+                prev_pos: bullet_pos,
+                interpolated_pos: bullet_pos,
+            },
             Velocity(vel + dir.normalize_to(1000.0)),
-            Lifespan(Timer::with_remaining(1.0)),
+            LifespanComponent(Timer::with_remaining(1.0)),
             Hitbox {
                 shape: Circle { radius: 5.0 }.into(),
                 dbvt_index: None,
-                mask: CollisionMask::TARGET,
+                mask: HitboxMask::TARGET,
                 damage: 1.0,
             },
             HitboxState::default(),
-            RemoveOnHit,
+            RemoveOnHitComponent,
         ));
     }
 }

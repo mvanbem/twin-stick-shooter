@@ -8,9 +8,47 @@ use legion::{Entity, EntityStore, IntoQuery};
 use rand_pcg::Pcg32;
 
 use crate::collision::{Aabb, Shape};
-use crate::component::{Hitbox, HitboxState, Hurtbox, HurtboxState, Position};
+use crate::position::Position;
 use crate::resource::CollideCounters;
 use crate::Vec2;
+
+/// A collider that deals damage.
+#[derive(Clone, Debug)]
+pub struct Hitbox {
+    pub shape: Shape,
+    pub dbvt_index: Option<usize>,
+    pub mask: HitboxMask,
+    pub damage: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct HitboxMask(u32);
+
+impl HitboxMask {
+    pub const TARGET: HitboxMask = HitboxMask(0x00000001);
+
+    pub fn overlaps(self, rhs: HitboxMask) -> bool {
+        (self.0 & rhs.0) != 0
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct HitboxState {
+    pub hit_entities: Vec<Entity>,
+}
+
+/// A collider that receives damage.
+#[derive(Clone, Debug)]
+pub struct Hurtbox {
+    pub shape: Shape,
+    pub dbvt_index: Option<usize>,
+    pub mask: HitboxMask,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct HurtboxState {
+    pub hit_by_entities: Vec<Entity>,
+}
 
 fn compute_bound(shape: &Shape, pos: Vec2) -> Aabb {
     let local = shape.compute_bound();
@@ -26,7 +64,7 @@ fn compute_bound(shape: &Shape, pos: Vec2) -> Aabb {
 #[write_component(HitboxState)]
 #[write_component(Hurtbox)]
 #[write_component(HurtboxState)]
-pub fn collide(
+pub fn hitbox(
     #[state] dbvt: &mut DynamicBoundingVolumeTree<TreeValueWrapped<Entity, Aabb>>,
     world: &mut SubWorld,
     #[resource] rng: &mut Pcg32,
