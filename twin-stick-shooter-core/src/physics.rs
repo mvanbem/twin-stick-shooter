@@ -1,28 +1,28 @@
 use cgmath::num_traits::zero;
 
-use crate::interpolate::Interpolate;
-use crate::position::Position;
+use crate::interpolate::InterpolateComponent;
+use crate::position::PositionComponent;
 use crate::resource::Time;
 use crate::Vec2;
 
 #[derive(Clone, Debug)]
-pub struct ForceAccumulator(pub Vec2);
+pub struct ForceComponent(pub Vec2);
 
-impl Default for ForceAccumulator {
+impl Default for ForceComponent {
     fn default() -> Self {
-        ForceAccumulator(zero())
+        ForceComponent(zero())
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct Mass {
+pub struct MassComponent {
     mass: f32,
     inv_mass: f32,
 }
 
-impl Mass {
-    pub fn new(mass: f32) -> Mass {
-        Mass {
+impl MassComponent {
+    pub fn new(mass: f32) -> MassComponent {
+        MassComponent {
             mass,
             inv_mass: 1.0 / mass,
         }
@@ -38,22 +38,22 @@ impl Mass {
 }
 
 #[derive(Clone, Debug)]
-pub struct Velocity(pub Vec2);
+pub struct VelocityComponent(pub Vec2);
 
 #[legion::system(for_each)]
 pub fn physics(
     #[resource] time: &Time,
-    mass: Option<&Mass>,
-    Position(pos): &mut Position,
-    interpolate: Option<&mut Interpolate>,
-    Velocity(vel): &mut Velocity,
-    force: Option<&mut ForceAccumulator>,
+    mass: Option<&MassComponent>,
+    PositionComponent(pos): &mut PositionComponent,
+    interpolate: Option<&mut InterpolateComponent>,
+    VelocityComponent(vel): &mut VelocityComponent,
+    force: Option<&mut ForceComponent>,
 ) {
-    if let (Some(mass), Some(ForceAccumulator(force))) = (mass, force) {
+    if let (Some(mass), Some(ForceComponent(force))) = (mass, force) {
         *vel += *force * mass.inv_mass() * time.elapsed_seconds;
         *force = zero();
     }
-    if let Some(Interpolate { prev_pos, .. }) = interpolate {
+    if let Some(InterpolateComponent { prev_pos, .. }) = interpolate {
         *prev_pos = *pos;
     }
     *pos += *vel * time.elapsed_seconds;

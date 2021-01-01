@@ -1,19 +1,22 @@
 use cgmath::vec2;
+use gui::in_game::RunningInGameMenu;
+use gui::station::StationDockedMenu;
+use model::ModelManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use twin_stick_shooter_core::resource::{Input, Subframe, Time};
-use twin_stick_shooter_core::Game;
+use twin_stick_shooter_core::game::Game;
+use twin_stick_shooter_core::resource::{GuiOverride, Input, Subframe, Time};
 use wasm_bindgen::prelude::{wasm_bindgen, Closure};
 use wasm_bindgen::JsCast;
 use web_sys::{
-    CanvasRenderingContext2d, Gamepad, GamepadButton, GamepadMappingType, HtmlCanvasElement,
-    KeyboardEvent, TouchEvent, Window,
+    CanvasRenderingContext2d, Document, Gamepad, GamepadButton, GamepadMappingType,
+    HtmlCanvasElement, HtmlElement, HtmlInputElement, KeyboardEvent, TouchEvent, Window,
 };
 
 mod action;
 mod draw;
 mod gui;
-mod style;
+mod model;
 mod time_accumulator;
 
 use gui::title::TitleMenu;
@@ -38,6 +41,7 @@ pub struct App {
     canvas: HtmlCanvasElement,
     ctx: CanvasRenderingContext2d,
     draw_callback: Option<Closure<dyn FnMut(f64)>>,
+    model_manager: ModelManager,
 }
 
 #[wasm_bindgen]
@@ -50,16 +54,15 @@ pub fn launch() {
     // Look up some objects in the JS environment.
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
-    let body = document.body().unwrap();
+    let quickstart = &window.location().hash().unwrap() == "#quickstart";
 
     // Set up the main canvas element.
     let canvas: HtmlCanvasElement = document
-        .create_element("canvas")
+        .get_element_by_id("canvas")
         .unwrap()
         .dyn_into()
         .unwrap();
     canvas.set_id("canvas");
-    body.append_child(&canvas).unwrap();
     let ctx: CanvasRenderingContext2d = canvas
         .get_context("2d")
         .unwrap()
@@ -94,8 +97,14 @@ pub fn launch() {
         canvas,
         ctx,
         draw_callback: None,
+        model_manager: ModelManager::default(),
     }));
     let mut app_mut = app.lock().unwrap();
+
+    if quickstart {
+        app_mut.gui = GuiState::new(Box::new(RunningInGameMenu));
+        action::create_game(&mut app_mut.game);
+    }
 
     // Register for keyboard events.
     app_mut.key_callback = Some(Closure::wrap(Box::new({
@@ -225,18 +234,28 @@ impl App {
     }
 
     fn update_and_draw(&mut self, timestamp: f64) {
-        let elapsed_seconds = self
-            .time_accumulator
-            .update_for_timestamp(Milliseconds(timestamp));
-
         let window = web_sys::window().unwrap();
         self.update_dimensions(&window);
 
+        let document = window.document().unwrap();
+        let debug = App::sample_debug_state(&document);
+
+        let elapsed_seconds = self
+            .time_accumulator
+            .update_for_timestamp(Milliseconds(timestamp));
         let input = self.sample_input(&window);
         self.step(elapsed_seconds, &input);
 
         self.interpolate();
-        draw::draw(&self.canvas, &self.ctx, &self.game, &input);
+        draw::draw(
+            &self.canvas,
+            &self.ctx,
+            &self.model_manager,
+            &self.game,
+            &input,
+            &debug,
+        );
+        self.update_debug_ui(&document);
 
         window
             .request_animation_frame(
@@ -327,10 +346,13 @@ impl App {
     }
 
     fn step(&mut self, elapsed_seconds: Option<Seconds>, input: &Input) {
+        // Step the GUI.
         if let Some(Seconds(elapsed_seconds)) = elapsed_seconds {
             self.gui
                 .step(&Time { elapsed_seconds }, &input, &mut self.game);
         }
+
+        // Step the game.
         if self.game.is_paused() {
             // Prevent the time accumulator from filling while paused. Otherwise, after unpause the
             // game will make several steps as if it needed to catch up.
@@ -340,6 +362,14 @@ impl App {
             while self.time_accumulator.try_consume(App::FIXED_TIMESTEP) {
                 self.game.step(App::FIXED_TIMESTEP.seconds(), input.clone());
             }
+        }
+
+        // Apply queued GUI overrides from the step.
+        for gui_override in self.game.gui_override_queue().drain() {
+            // TODO: Is this silly? Why isn't this just a coalescing Option<GuiOverride>?
+            self.gui.replace_with(match gui_override {
+                GuiOverride::StationDocked => Box::new(StationDockedMenu),
+            });
         }
     }
 
@@ -351,4 +381,30 @@ impl App {
         });
         self.game.interpolate(subframe);
     }
+
+    fn sample_debug_state(document: &Document) -> DebugState {
+        DebugState {
+            draw_hitboxes: document
+                .get_element_by_id("debug-draw-hitboxes")
+                .and_then(|element| element.dyn_into::<HtmlInputElement>().ok())
+                .map(|input| input.checked())
+                .unwrap_or(false),
+        }
+    }
+
+    fn update_debug_ui(&self, document: &Document) {
+        let counters = self.game.collide_counters();
+
+        if let Some(element) = document
+            .get_element_by_id("debug-hitbox-counters")
+            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
+        {
+            element.set_inner_text(&format!("{:#?}", &*counters));
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DebugState {
+    draw_hitboxes: bool,
 }

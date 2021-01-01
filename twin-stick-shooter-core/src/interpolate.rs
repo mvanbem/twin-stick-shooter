@@ -1,23 +1,23 @@
-use cgmath::VectorSpace;
+use cgmath::{EuclideanSpace, VectorSpace};
 
-use crate::position::Position;
+use crate::position::PositionComponent;
 use crate::resource::Subframe;
-use crate::Vec2;
+use crate::{Pt2, Vec2};
 
 #[derive(Clone, Debug)]
-pub struct Interpolate {
-    pub prev_pos: Vec2,
-    pub interpolated_pos: Vec2,
+pub struct InterpolateComponent {
+    pub prev_pos: Pt2,
+    pub interpolated_pos: Pt2,
 }
 
 #[legion::system(for_each)]
 pub fn interpolate(
-    &Position(pos): &Position,
-    Interpolate {
+    &PositionComponent(pos): &PositionComponent,
+    &mut InterpolateComponent {
         prev_pos,
-        interpolated_pos,
-    }: &mut Interpolate,
+        ref mut interpolated_pos,
+    }: &mut InterpolateComponent,
     #[resource] &Subframe(subframe): &Subframe,
 ) {
-    *interpolated_pos = Vec2::lerp(*prev_pos, pos, subframe);
+    *interpolated_pos = Pt2::from_vec(Vec2::lerp(prev_pos.to_vec(), pos.to_vec(), subframe));
 }

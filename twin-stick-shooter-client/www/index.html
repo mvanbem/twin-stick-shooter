@@ -9,7 +9,44 @@
 
 <body>
     <script async src="main.js" type="module"></script>
+    <canvas id="canvas"></canvas>
+    <div id="hud-systems" class="hud top">
+        <div class="label">POWER</div>
+        <div class="label">BATTERY</div>
+        <div class="label">SHIELD</div>
+        <div class="label">HULL</div>
+        <div class="value" id="hud-systems-power">[██████────]</div>
+        <div class="value" id="hud-systems-battery">[████──────]</div>
+        <div class="value" id="hud-systems-shield">[█████─────] ● ● ◌</div>
+        <div class="value" id="hud-systems-hull">● ● ◌</div>
+    </div>
+    <div id="hud-main-weapon" class="hud bottom">
+        <div class="value">[██████────]</div>
+        <div class="label">IMPROVISED BLASTER</div>
+    </div>
+    <div id="hud-alt-weapon" class="hud bottom">
+        <div class="value">[██████────]</div>
+        <div class="label">MAIN CANNON</div>
+    </div>
+    <div id="hud-resources" class="hud top">
+        <div class="label">CORES</div>
+        <div class="label">SCRAP</div>
+        <div class="value">12</div>
+        <div class="value">345</div>
+    </div>
     <div id="gui"></div>
+    <div id="debug">
+        <details>
+            <summary>Debug</summary>
+            <div class="toggles">
+                <label><input type="checkbox" id="debug-draw-hitboxes">Draw Hitboxes</label>
+            </div>
+            <details>
+                <summary>Hitbox Counters</summary>
+                <div id="debug-hitbox-counters"></div>
+            </details>
+        </details>
+    </div>
 </body>
 
 </html>

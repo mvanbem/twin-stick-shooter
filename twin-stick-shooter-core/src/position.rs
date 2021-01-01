@@ -1,4 +1,4 @@
-use crate::Vec2;
+use crate::Pt2;
 
 #[derive(Clone, Debug)]
-pub struct Position(pub Vec2);
+pub struct PositionComponent(pub Pt2);

@@ -21,7 +21,70 @@ body {
     position: absolute;
     left: 0;
     top: 0;
-    z-index: 1;
+}
+
+#hud-systems {
+    left: 0;
+    grid-template-columns: repeat(4, auto);
+}
+
+#hud-main-weapon {
+    right: 0;
+    grid-template-columns: repeat(1, auto);
+}
+
+#hud-alt-weapon {
+    left: 0;
+    grid-template-columns: repeat(1, auto);
+}
+
+#hud-resources {
+    right: 0;
+    grid-template-columns: repeat(2, auto);
+}
+
+.hud {
+    position: absolute;
+
+    font: 12px sans-serif;
+    font-weight: bold;
+    color: #fff;
+    padding-top: 5px;
+    padding-left: 10px;
+
+    display: grid;
+    gap: 5px 10px;
+    grid-auto-rows: auto;
+}
+
+.hud.top {
+    top: 0;
+}
+
+.hud.bottom {
+    bottom: 0;
+}
+
+.hud .label {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.hud.top .label {
+    border-bottom: 1px solid #fff;
+}
+
+.hud.bottom .label {
+    border-top: 1px solid #fff;
+}
+
+.hud .value {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: center;
+    align-items: center;
 }
 
 #gui {
@@ -30,7 +93,6 @@ body {
     top: 0;
     right: 0;
     bottom: 0;
-    z-index: 2;
     overflow: auto;
     
     font: 50px sans-serif;
@@ -41,9 +103,28 @@ body {
     flex-flow: column nowrap;
 }
 
-.heading {
+#gui .heading {
     text-align: center;
     padding: 0.5em 1em;
+    background-color: #2196f3;
+    color: #fff;
+    align-self: center;
+
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+#gui .title {
+    text-align: center;
+    padding: 0.5em 1em;
+    font-size: 2em;
     background-color: #2196f3;
     color: #fff;
 
@@ -58,15 +139,11 @@ body {
     align-items: center;
 }
 
-.title {
-    font-size: 2em;
-}
-
-.expand {
+#gui .expand {
     flex-grow: 1;
 }
 
-.button {
+#gui .button {
     border: 3px solid #fff;
     background-color: #000;
     padding: 0.5em 2.0em;
@@ -84,7 +161,7 @@ body {
     pointer-events: none;
 }
 
-.button.selected {
+#gui .button.selected {
     border-color: #ff4081;
     background-color: #ff4081;
     color: #000;
@@ -92,12 +169,45 @@ body {
     font-weight: bold;
 }
 
-.button.selected::before {
+#gui .button.selected::before {
     content: '➤';
     display: inline-block;
     width: 2.0em;
     text-align: center;
     margin: -1em 0;
+}
+
+#debug {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: auto;
+    
+    font: 16px sans-serif;
+    color: #fff;
+    pointer-events: none;
+
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+#debug * {
+    pointer-events: auto;
+}
+
+#debug .toggles {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+#debug-hitbox-counters {
+    white-space: pre;
 }
 
 @media (max-width: 1000px) {

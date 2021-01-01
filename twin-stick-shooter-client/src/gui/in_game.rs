@@ -1,4 +1,4 @@
-use twin_stick_shooter_core::Game;
+use twin_stick_shooter_core::game::Game;
 
 use crate::gui::title::TitleMenu;
 use crate::gui::{GuiResult, Heading, HeadingStyle, Menu};

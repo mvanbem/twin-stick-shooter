@@ -1,3 +1,4 @@
+use cgmath::num_traits::{zero, NumCast};
 use cgmath::{BaseFloat, InnerSpace, VectorSpace};
 
 mod timer;
@@ -23,6 +24,20 @@ where
         v
     } else {
         v.normalize_to(b)
+    }
+}
+
+pub fn map_magnitude<V, F>(v: V, f: F) -> V
+where
+    V: InnerSpace,
+    <V as VectorSpace>::Scalar: BaseFloat,
+    F: FnOnce(<V as VectorSpace>::Scalar) -> <V as VectorSpace>::Scalar,
+{
+    let r = f(v.magnitude());
+    if r > NumCast::from(1e-3).unwrap() {
+        v.normalize_to(r)
+    } else {
+        zero()
     }
 }
 

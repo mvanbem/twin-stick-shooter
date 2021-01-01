@@ -1,14 +1,15 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
+use twin_stick_shooter_core::game::Game;
 use twin_stick_shooter_core::resource::{Input, Time};
 use twin_stick_shooter_core::util::Timer;
-use twin_stick_shooter_core::Game;
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
 pub mod in_game;
+pub mod station;
 pub mod title;
 
 const BUTTON_COOLDOWN: f32 = 0.25;
@@ -60,6 +61,10 @@ impl GuiState {
         };
         gui.inner.lock().unwrap().actuate(&gui.inner);
         gui
+    }
+
+    pub fn replace_with(&self, menu: Box<dyn Menu>) {
+        self.inner.lock().unwrap().replace_with(&self.inner, menu);
     }
 
     pub fn step(&self, time: &Time, input: &Input, game: &mut Game) {
@@ -226,7 +231,7 @@ impl InnerGuiState {
                         document.create_element("div").unwrap().dyn_into().unwrap();
                     element.set_class_name(match heading.style {
                         HeadingStyle::Regular => "heading",
-                        HeadingStyle::Title => "heading title",
+                        HeadingStyle::Title => "title",
                     });
                     element.set_text_content(Some(heading.text));
                     element
@@ -360,6 +365,11 @@ impl InnerGuiState {
         }
     }
 
+    fn replace_with(&mut self, inner: &Arc<Mutex<InnerGuiState>>, menu: Box<dyn Menu>) {
+        self.menu = menu;
+        self.actuate(inner);
+    }
+
     #[must_use]
     fn handle_gui_result(
         &mut self,
@@ -369,8 +379,7 @@ impl InnerGuiState {
         match gui_result {
             GuiResult::Ok => false,
             GuiResult::ReplaceMenu(menu) => {
-                self.menu = menu;
-                self.actuate(inner);
+                self.replace_with(inner, menu);
                 true
             }
         }

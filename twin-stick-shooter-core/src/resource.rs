@@ -1,3 +1,6 @@
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
 use crate::Vec2;
 
 #[derive(Clone, Debug)]
@@ -36,4 +39,24 @@ pub struct CollideCounters {
     pub mask_misses: usize,
     pub gjk_hits: usize,
     pub gjk_misses: usize,
+}
+
+#[derive(Clone, Debug)]
+pub enum GuiOverride {
+    StationDocked,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct GuiOverrideQueue {
+    queue: Arc<Mutex<VecDeque<GuiOverride>>>,
+}
+
+impl GuiOverrideQueue {
+    pub fn push_back(&self, gui_override: GuiOverride) {
+        self.queue.lock().unwrap().push_back(gui_override);
+    }
+
+    pub fn drain(&self) -> Vec<GuiOverride> {
+        self.queue.lock().unwrap().drain(..).collect()
+    }
 }

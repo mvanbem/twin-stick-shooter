@@ -16,6 +16,8 @@ let websocket = new Promise((resolve, reject) => {
         url.pathname += '/';
     }
     url.pathname += 'websocket';
+    url.hash = '';
+
     let ws = new WebSocket(url);
     ws.addEventListener('open', () => {
         resolve(ws);

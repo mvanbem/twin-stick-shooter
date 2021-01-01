@@ -1,24 +1,27 @@
-use std::collections::HashMap;
-
-use cgmath::vec2;
+use cgmath::{vec2, EuclideanSpace};
 use collision::dbvt::{DiscreteVisitor, DynamicBoundingVolumeTree, TreeValueWrapped};
 use collision::ComputeBound;
 use legion::world::SubWorld;
 use legion::{Entity, EntityStore, IntoQuery};
 use rand_pcg::Pcg32;
+use std::collections::HashMap;
 
 use crate::collision::{Aabb, Shape};
-use crate::position::Position;
+use crate::position::PositionComponent;
 use crate::resource::CollideCounters;
-use crate::Vec2;
+use crate::{translation, Mat3, Vec2};
 
 /// A collider that deals damage.
 #[derive(Clone, Debug)]
-pub struct Hitbox {
+pub struct HitboxComponent {
+    // Attributes.
     pub shape: Shape,
     pub dbvt_index: Option<usize>,
     pub mask: HitboxMask,
-    pub damage: f32,
+    pub effect: HitboxEffect,
+
+    // Intra-frame state.
+    pub hit_entities: Vec<Entity>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -26,44 +29,55 @@ pub struct HitboxMask(u32);
 
 impl HitboxMask {
     pub const TARGET: HitboxMask = HitboxMask(0x00000001);
+    pub const PLAYER: HitboxMask = HitboxMask(0x00000002);
 
     pub fn overlaps(self, rhs: HitboxMask) -> bool {
         (self.0 & rhs.0) != 0
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct HitboxState {
-    pub hit_entities: Vec<Entity>,
+#[derive(Clone, Debug)]
+pub enum HitboxEffect {
+    None,
+    Damage(f32),
+    StationDock,
+}
+
+impl Default for HitboxEffect {
+    fn default() -> Self {
+        HitboxEffect::None
+    }
 }
 
 /// A collider that receives damage.
 #[derive(Clone, Debug)]
-pub struct Hurtbox {
+pub struct HurtboxComponent {
+    // Attributes.
     pub shape: Shape,
     pub dbvt_index: Option<usize>,
     pub mask: HitboxMask,
-}
 
-#[derive(Clone, Debug, Default)]
-pub struct HurtboxState {
+    // Intra-frame state.
     pub hit_by_entities: Vec<Entity>,
 }
 
-fn compute_bound(shape: &Shape, pos: Vec2) -> Aabb {
-    let local = shape.compute_bound();
-    Aabb {
-        min: local.min + pos,
-        max: local.max + pos,
+fn compute_bound(shape: &Shape, xform: &Mat3) -> Aabb {
+    match shape {
+        Shape::Circle(circle) => {
+            let local = circle.compute_bound();
+            Aabb {
+                min: local.min + xform.z.truncate(),
+                max: local.max + xform.z.truncate(),
+            }
+        }
+        _ => unimplemented!("transformed compute_bound() for `Shape`s other than `Circle`"),
     }
 }
 
 #[legion::system]
-#[read_component(Position)]
-#[write_component(Hitbox)]
-#[write_component(HitboxState)]
-#[write_component(Hurtbox)]
-#[write_component(HurtboxState)]
+#[read_component(PositionComponent)]
+#[write_component(HitboxComponent)]
+#[write_component(HurtboxComponent)]
 pub fn hitbox(
     #[state] dbvt: &mut DynamicBoundingVolumeTree<TreeValueWrapped<Entity, Aabb>>,
     world: &mut SubWorld,
@@ -75,14 +89,17 @@ pub fn hitbox(
     *counters = CollideCounters::default();
 
     // Update all hitboxes.
-    for (entity, (&Position(pos), hitbox, hitbox_state)) in
-        <(&Position, &mut Hitbox, &mut HitboxState)>::query()
+    for (entity, (&PositionComponent(pos), hitbox)) in
+        <(&PositionComponent, &mut HitboxComponent)>::query()
             .iter_chunks_mut(world)
             .flat_map(|chunk| chunk.into_iter_entities())
     {
         counters.hitboxes += 1;
-        let value =
-            TreeValueWrapped::new(entity, compute_bound(&hitbox.shape, pos), COLLISION_MARGIN);
+        let value = TreeValueWrapped::new(
+            entity,
+            compute_bound(&hitbox.shape, &translation(pos.to_vec())),
+            COLLISION_MARGIN,
+        );
         match hitbox.dbvt_index {
             Some(index) => {
                 counters.dbvt_updates += 1;
@@ -94,13 +111,13 @@ pub fn hitbox(
             }
         }
         hitbox_entities_by_dbvt_index.insert(hitbox.dbvt_index.unwrap(), entity);
-        hitbox_state.hit_entities.clear();
+        hitbox.hit_entities.clear();
     }
 
     // Update all hurtboxes.
-    for hurtbox_state in <&mut HurtboxState>::query().iter_mut(world) {
+    for hurtbox in <&mut HurtboxComponent>::query().iter_mut(world) {
         counters.hurtboxes += 1;
-        hurtbox_state.hit_by_entities.clear();
+        hurtbox.hit_by_entities.clear();
     }
 
     // Remove any unreferenced DBVT nodes.
@@ -122,20 +139,21 @@ pub fn hitbox(
     }
 
     // Process all collision pairs.
-    let mut hurtbox_query = <(&Hurtbox, &mut HurtboxState)>::query();
+    let mut hurtbox_query = <&mut HurtboxComponent>::query();
     let (mut hurtbox_world, mut world) = world.split_for_query(&hurtbox_query);
-    let (position_world, mut hitbox_world) = world.split::<&Position>();
+    let (position_world, mut hitbox_world) = world.split::<&PositionComponent>();
     dbvt.tick_with_rng(rng);
-    for (hurtbox_entity, (hurtbox, hurtbox_state)) in hurtbox_query
+    for (hurtbox_entity, hurtbox) in hurtbox_query
         .iter_chunks_mut(&mut hurtbox_world)
         .flat_map(|chunk| chunk.into_iter_entities())
     {
-        let &Position(hurtbox_pos) = position_world
+        let &PositionComponent(hurtbox_pos) = position_world
             .entry_ref(hurtbox_entity)
             .unwrap()
             .into_component()
             .unwrap();
-        let bound = compute_bound(&hurtbox.shape, hurtbox_pos);
+        let hurtbox_xform = translation(hurtbox_pos.to_vec());
+        let bound = compute_bound(&hurtbox.shape, &hurtbox_xform);
 
         counters.dbvt_queries += 1;
         for (value_index, ()) in dbvt
@@ -148,22 +166,26 @@ pub fn hitbox(
             let node_index = dbvt.values()[value_index].0;
             let hitbox_entity = *hitbox_entities_by_dbvt_index.get(&node_index).unwrap();
             let mut hitbox_entry = hitbox_world.entry_mut(hitbox_entity).unwrap();
-            let hitbox: &Hitbox = hitbox_entry.get_component().unwrap();
+            let hitbox: &mut HitboxComponent = hitbox_entry.get_component_mut().unwrap();
 
             if hurtbox.mask.overlaps(hitbox.mask) {
                 counters.mask_hits += 1;
 
-                let &Position(hitbox_pos) = position_world
+                let &PositionComponent(hitbox_pos) = position_world
                     .entry_ref(hitbox_entity)
                     .unwrap()
                     .into_component()
                     .unwrap();
-                if crate::collision::test(&hurtbox.shape, hurtbox_pos, &hitbox.shape, hitbox_pos) {
+                if crate::collision::test(
+                    &hurtbox.shape,
+                    &hurtbox_xform,
+                    &hitbox.shape,
+                    &translation(hitbox_pos.to_vec()),
+                ) {
                     counters.gjk_hits += 1;
 
-                    hurtbox_state.hit_by_entities.push(hitbox_entity);
-                    let hitbox_state: &mut HitboxState = hitbox_entry.get_component_mut().unwrap();
-                    hitbox_state.hit_entities.push(hurtbox_entity);
+                    hurtbox.hit_by_entities.push(hitbox_entity);
+                    hitbox.hit_entities.push(hurtbox_entity);
                 } else {
                     counters.gjk_misses += 1;
                 }

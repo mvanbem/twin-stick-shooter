@@ -1,7 +1,7 @@
 use legion::systems::CommandBuffer;
 use legion::Entity;
 
-use crate::hitbox::HitboxState;
+use crate::hitbox::HitboxComponent;
 use crate::resource::Time;
 use crate::util::Timer;
 
@@ -27,10 +27,10 @@ pub fn lifespan(
 pub fn remove_on_hit(
     cmd: &mut CommandBuffer,
     entity: &Entity,
-    hitbox_state: &HitboxState,
+    hitbox: &HitboxComponent,
     _: &RemoveOnHitComponent,
 ) {
-    if !hitbox_state.hit_entities.is_empty() {
+    if !hitbox.hit_entities.is_empty() {
         cmd.remove(*entity);
     }
 }

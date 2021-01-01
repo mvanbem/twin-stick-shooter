@@ -1,24 +1,23 @@
 use twin_stick_shooter_core::game::Game;
 
 use crate::action;
-use crate::gui::in_game::RunningInGameMenu;
-use crate::gui::{GuiResult, Menu};
+use crate::gui::{GuiResult, Heading, HeadingStyle, Menu};
 
-use super::{Heading, HeadingStyle};
+use super::in_game::RunningInGameMenu;
 
 #[derive(Debug)]
-pub struct TitleMenu;
+pub struct StationDockedMenu;
 
-impl Menu for TitleMenu {
+impl Menu for StationDockedMenu {
     fn heading(&self) -> Option<Heading<'_>> {
         Some(Heading {
-            style: HeadingStyle::Title,
-            text: "this is a title screen",
+            style: HeadingStyle::Regular,
+            text: "Docked at Station",
         })
     }
 
     fn items(&self) -> &[&str] {
-        &["New Game"]
+        &["Launch"]
     }
 
     fn on_start_pressed(&mut self, _game: &mut Game) -> GuiResult {
@@ -26,7 +25,7 @@ impl Menu for TitleMenu {
     }
 
     fn invoke_item(&mut self, _index: usize, game: &mut Game) -> GuiResult {
-        action::create_game(game);
+        action::launch_from_station(game);
         GuiResult::ReplaceMenu(Box::new(RunningInGameMenu))
     }
 }
